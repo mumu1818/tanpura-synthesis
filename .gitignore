@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Optimization artifacts
+*.db
+out_modal/
+out_fdtd/
+out_waveguide/
+out_opt/
+
+# Audio files (large binaries)
+*.wav
+*.mp3
+*.flac
+
+# uv
+uv.lock

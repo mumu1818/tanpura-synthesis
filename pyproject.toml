@@ -1,7 +1,14 @@
 [project]
 name = "tanpura-synthesis"
 version = "0.1.0"
-description = "Add your description here"
+description = "Physical modelling synthesis of the Indian Tanpura, including Jiva thread and curved bridge contact physics"
 readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "numba",
+    "scipy",
+    "librosa",
+    "optuna",
+    "cmaes",
+]
