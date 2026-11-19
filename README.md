@@ -1,5 +1,7 @@
 # Tanpura Physical Modelling Synthesis
 
+> **Status (Nov 2026).** The original `modal/`, `fdtd/` and `waveguide/` synthesizers below do **not** produce jawari: the string never rests on the jiva, the contact is ~10⁷× too soft, and each method has a fatal bug. The measured root causes are in [`docs/EVALUATION.md`](docs/EVALUATION.md). **Working, validated models are in [`jawari/`](jawari/):** an energy-stable 1-D modal model and a two-polarisation model, both producing the characteristic sweeping jawari formant, cross-checked against an independent finite-difference model. Start there.
+
 An experimental attempt at physically modelling the sound of the Indian Tanpura (Tambura) from first principles -- something that, to our knowledge, has never been fully achieved in computational acoustics.
 
 ## Why This Is Hard
@@ -67,8 +69,8 @@ Early experimental trial. The physics are simplified (no torsional modes, no sou
 ## References
 
 - Van Walstijn & Chatziioannou, "Numerical Simulation of Tanpura String Vibrations" (ISMA 2014)
-- Van Walstijn et al., "Modal Based Tanpura Simulation" (DAFx 2017)
-- Van Walstijn & Bridges, "A Real-Time Synthesis Oriented Tanpura Model" (DAFx 2016)
+- Bridges & Van Walstijn, "Modal Based Tanpura Simulation: Combining Tension Modulation and Distributed Bridge Interaction" (DAFx 2017)
+- Van Walstijn, Bridges & Mehes, "A Real-Time Synthesis Oriented Tanpura Model" (DAFx 2016)
 - Van Walstijn, Chatziioannou & Bhanuprakash, "Implicit and explicit schemes for energy-stable simulation of string vibrations with collisions" (JSV 2024)
 - Bilbao, "Numerical Sound Synthesis" (2009)
 - C. V. Raman, "On some Indian stringed instruments" (1921)

@@ -19,3 +19,6 @@ out_opt/
 
 # uv
 uv.lock
+
+# jawari/ simulation outputs (WAV/PNG/NPZ/results)
+jawari/out/
