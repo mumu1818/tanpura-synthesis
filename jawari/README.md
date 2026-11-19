@@ -50,6 +50,12 @@ sf.write('out/jawari_demo.wav', 0.9*y/abs(y).max(), 44100); print('wrote out/jaw
 
 All outputs go to `jawari/out/` (git-ignored); set `TANPURA_OUT` to change this.
 
+## Instrument facts from the user
+
+- The kharaj is **phosphor bronze** (ρ ≈ 8800 kg/m³, E ≈ 1.1e11 Pa), 0.7 mm, speaking length 1.05 m, C#2 = 69.4 Hz.
+- It is plucked at about **1/3 (or 2/3) of the length from the bridge** toward the nut.
+- The 1-D renders sound close but lack **body depth**.
+
 ## Known gaps
 
 These are the next steps; see [`../docs/EVALUATION.md`](../docs/EVALUATION.md) §6–7.

@@ -229,6 +229,13 @@ The most relevant published work:
 
 ## 6. Recommended roadmap
 
+### Instrument facts confirmed by the user (use these as defaults)
+
+- **Kharaj string material: phosphor bronze** (not steel). Use phosphor-bronze properties (ρ ≈ 8800 kg/m³, E ≈ 1.1e11 Pa) for the kharaj preset; the repo's original `shared/params.py` steel values are superseded.
+- **Pluck position: about 1/3 (sometimes 2/3) of the string length from the bridge toward the nut.** Default x_p = L/3 from the bridge-side termination; also offer 2L/3.
+- From the repo's `shared/params.py` (the user's own measurements): speaking length 1.05 m, kharaj gauge 0.7 mm, tuned to C#2 (69.4 Hz).
+- After listening to the 1-D renders, the user found them close to a real tanpura but **missing body depth**, so the body/radiation model is a priority.
+
 1. **Fix the rest state from statics.** Model a finite-diameter thread on a parametrised (later measured) bridge profile, including the break angle and bending stiffness. Solve the static equilibrium and start every simulation from it. Then sweep the thread in 0.05 mm steps at several pluck strengths. Treat the crest gap h0 as an explicit, reported parameter, not a default of 0.
 2. **Measure one real tanpura.** Get the bridge profile (dental-putty cast plus a flatbed scan or dial indicator), string gauges and tensions, and partial T60s from a recording. Record one string with the thread swept in ~0.25 mm steps, ideally with a cheap optical or piezo string sensor. **This dataset is the thing nobody has.**
 3. **Calibrate.**
