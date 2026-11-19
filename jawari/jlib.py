@@ -32,10 +32,13 @@ def simulate_sig(over=None, sig_fn=None, energy=False):
             s["v"] = v; s["Qp"] = np.ascontiguousarray(0.5 * (Qp + Qp.T))
     N = int(round(p["dur"] * p["fs"]))
     Fe = T1.excitation(p)
+    # initial state (zeros unless p['static_init']); computed after the damping override because the static
+    # fixed point of the scheme uses its omega*^2 (which depends on sigma)
+    q_init, _ = T1.initial_state(p, s)
     out = T1._run(N, s["a"], s["b"], s["c"], s["ge"], Fe, s["gc"], s["kap"], s["lam"], s["thcc"], s["kc"],
                   s["rc"], bool(p["bridge"]), s["Phi"], s["hj"], s["dxb"], s["v"], s["Qp"], float(p["kb"]),
                   float(p["alpha"]), s["w0"], s["wn"], s["phio"], float(p["tol"]), int(p["maxit"]),
-                  bool(energy), s["m"], s["om2s"], s["sigs"], s["dt"], bool(p["guess"]))
+                  bool(energy), s["m"], s["om2s"], s["sigs"], s["dt"], bool(p["guess"]), q_init)
     Fbr, Fnut, Fbs, Fcs, F0s, yo, H, Dcum, Wcum, pen, st = out
     return p, s, dict(Fbridge=Fbr, Fnut=Fnut, Fb=Fbs, Fc=Fcs, F0=F0s, y=yo, H=H, D=Dcum, W=Wcum, pen=pen, st=st)
 

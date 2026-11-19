@@ -135,6 +135,29 @@ From [`jawari/render1d.py`](../jawari/render1d.py); bridge force, 10 s.
 - **Perceptual flaw.** The bridge face is flat across the string, so the horizontal polarisation never touches it. Energy that migrates into it stops buzzing. With 1 cent of nut coupling, the late mono tone is *duller* than in 1-D: mean buzz over 4–8 s is about −30 dB, against −18 dB.
 - **Before this beats 1-D perceptually** it needs transverse bridge curvature or a string groove, so that the contact normal depends on z, and a frictional (stick-slip) lateral thread.
 
+### 3.5 The user's kharaj, finger pluck and body
+
+[`jawari/presets.py`](../jawari/presets.py), [`jawari/body.py`](../jawari/body.py), [`jawari/render_demo.py`](../jawari/render_demo.py).
+
+**`preset('kharaj')`**
+- **String:** 0.7 mm phosphor bronze, 1.05 m, C#2 (69.4 Hz), 140 modes below 20 kHz.
+- **Geometry:** rest state from statics, with the thread auto-placed so the crest just grazes; the run starts in static equilibrium.
+- **Tuning:** exactly 69.4 Hz with contact off. Jawari contact then makes it +4 to +7 cents sharp.
+- **Pluck:** a finger-pad pluck at **L/3 from the bridge**. It excites even modes (25 % of the energy) and nulls every 3rd harmonic, as a pluck at a third should.
+- **Losses:** better-justified. T60 is 41 s at the fundamental and 4.5 s at 1 kHz, about twice the old sustain; the coefficients are still unverified.
+
+**Thread sweep.** The jawari is present at grazing and lasts the whole 12 s render. 0.1 mm of thread movement either kills it after 8 s (gap opens by 1.6 µm) or presses the crest into permanent contact.
+
+**Body.** `apply_body` is a one-way filter from bridge force to radiated sound, built from tumba and tabli modes plus a dense high-frequency region, with optional stereo and room.
+- The `tanpura_male` preset (air mode 65 Hz, soundboard 120 Hz) keeps the kharaj's low end: energy below 100 Hz is 0.237 against 0.234 dry. It adds 300 Hz–1 kHz body colour.
+- The generic preset, placed for a 131 Hz string, made the octave boom by +13 dB.
+- All body values are estimates. A measured response through `apply_ir` replaces them, and `BODY.md` explains how to record one.
+
+**Independent check.** A judge re-ran everything:
+- 83 regression arrays are bit-identical, so default behaviour is unchanged;
+- the statics agree with the independent solver;
+- pitch, penetration (≈ 0.23 µm), the bilateral-thread validity and click-free onsets were all verified.
+
 ## 4. New finding: thread sensitivity is a micrometre-geometry effect
 
 Published work says the 1-D model *"fails to replicate the jvari's strong dependence on the thread placement"* (Bridges & van Walstijn, VT-2015) and proposes two polarisations plus friction. We tested this.
@@ -143,12 +166,18 @@ Published work says the 1-D model *"fails to replicate the jvari's strong depend
 
 | Thread shift | Crest gap | Mean buzz, 0.2 N pluck | Mean buzz, 0.05 N pluck |
 |---|---|---|---|
-| −0.2 mm | +6 µm (pressed) | −21.9 dB | −8.1 dB |
-| −0.1 mm | +3 µm | −17.1 dB | −16.0 dB |
+| −0.2 mm | +6 µm (pressed) | −21.9 dB* | −8.1 dB* |
+| −0.1 mm | +3 µm (pressed) | −17.1 dB* | −16.0 dB* |
 | 0 | 0 (grazing) | −10.7 dB | −10.7 dB |
 | +0.1 mm | −3 µm | −18.3 dB | **−65.5 dB (jawari off)** |
 | +0.2 mm | −6 µm | −23.9 dB | −127.9 dB |
 | +0.4 mm | −11.5 µm | −60.5 dB | −127.9 dB |
+
+\* **Correction (statics work, §4e).** The pressed rows started from a straight string that overlapped the bridge, which releases a start-up click of about 8.6 N.
+
+- Started from static equilibrium (`static_init=True`), the soft-pluck cases change from −8.1 dB to **−124.5 dB** and from −16.0 dB to **−52.7 dB**. The string sits in permanent contact and does not buzz; this was reproduced independently.
+- The open-gap rows and the conclusion are unaffected: a few µm decide between full jawari and none.
+- The statics-initialised sweep (`study_statics.py`) gives a sharp optimum at grazing, 5–15 dB per 0.05 mm of thread movement, and a 17 dB buzz range over ±0.1 mm.
 
 **(b) Cross-check.** The independent FD model ([`jawari/study_crest_gap.py`](../jawari/study_crest_gap.py)) agrees. A 1 µm gap moves the buzz by 8–14 dB; 3 µm moves it by 6–60 dB; and the gap also makes the jawari **depend on pluck strength**. That matches how players describe an "open" or "closed" jawari and why soft and hard strokes sound different.
 
@@ -196,6 +225,17 @@ Every one of these is far larger than the µm tolerances the sound depends on. N
 
 **Hypothesis worth testing.** The jiva's job is to set a µm-scale gap and grazing angle at the bridge crest. Thread-placement sensitivity follows from the statics of the string over a real bridge profile, and the second polarisation is a refinement, not the root cause. This is falsifiable with one instrument, a profile cast and a thread sweep.
 
+**(e) Statics, now computed** ([`jawari/statics.py`](../jawari/statics.py), [`STATICS.md`](../jawari/STATICS.md)).
+
+The rest state is now solved, not assumed. The solver takes a parametrised or **measured** bridge profile, a finite-diameter thread, the tail break angle, the speaking-length angle and bending stiffness. It is accurate to < 0.05 µm, and an independent analytic solver (`crosscheck_statics.py`) agrees with it to < 0.001 µm. All bridge geometry is still assumed: parabola c = 3/m, 0.2 mm thread, φ = 10°.
+
+- **Bending stiffness lifts the string at the crest** by +91 µm (C3), +471 µm (the user's bronze kharaj) and +803 µm (steel). For the kharaj an EI = 0 rest state is meaningless: the bending length √(EI/T) = 4.3 mm is about the thread-to-crest distance.
+- **The break angle behind the bridge leaks into the crest gap.** For C3, φ 5° → 10° changes the gap by about −11 µm. That is 2–4× the effect of a 0.1 mm thread move, which already costs 8–60 dB of buzz. With EI = 0 the effect disappears.
+- **The string can lift off the back of the bridge** at small break angles. One thread setting can then have several grazing positions, which may explain why setting a jawari is fiddly.
+- **The simple sensitivity rule fails for stiff strings.** dg/dx_c ≈ 2√(c·d_t) is off by −26…+23 % for C3 and up to +105 % for the kharaj.
+
+**Testable prediction.** The jawari setting should depend on the break angle and string gauge as much as on thread position. A measured profile plus a thread sweep on one instrument can confirm or refute this.
+
 ## 5. Prior art: is this novel?
 
 The most relevant published work:
@@ -236,18 +276,19 @@ The most relevant published work:
 - From the repo's `shared/params.py` (the user's own measurements): speaking length 1.05 m, kharaj gauge 0.7 mm, tuned to C#2 (69.4 Hz).
 - After listening to the 1-D renders, the user found them close to a real tanpura but **missing body depth**, so the body/radiation model is a priority.
 
-1. **Fix the rest state from statics.** Model a finite-diameter thread on a parametrised (later measured) bridge profile, including the break angle and bending stiffness. Solve the static equilibrium and start every simulation from it. Then sweep the thread in 0.05 mm steps at several pluck strengths. Treat the crest gap h0 as an explicit, reported parameter, not a default of 0.
+1. ✅ **Done (§4e): fix the rest state from statics.** Remaining: run the thread sweep on a *measured* profile. Original step: model a finite-diameter thread on a parametrised (later measured) bridge profile, including the break angle and bending stiffness. Solve the static equilibrium and start every simulation from it. Then sweep the thread in 0.05 mm steps at several pluck strengths. Treat the crest gap h0 as an explicit, reported parameter, not a default of 0.
 2. **Measure one real tanpura.** Get the bridge profile (dental-putty cast plus a flatbed scan or dial indicator), string gauges and tensions, and partial T60s from a recording. Record one string with the thread swept in ~0.25 mm steps, ideally with a cheap optical or piezo string sensor. **This dataset is the thing nobody has.**
 3. **Calibrate.**
-   - Fit the losses to the measured T60s; the current defaults make the tone decay too fast (−62 dB at 8 s).
+   - Fit the losses to the measured T60s. The kharaj preset's Valette coefficients and body-drain mobility are unverified.
    - Fit the gap and profile to the measured formant trajectory, i.e. the time to the plateau and the plateau frequency.
    - Use jawari-specific features (buzz track, partial-envelope formant trace) with f0 and onset alignment, not the old loss.
 4. **Realism.**
-   - Use a localised finger pluck that excites even modes.
-   - Retune for the speaking length; the pitch is currently +12 cents.
-   - Use the target string (C#2 kharaj, not C3).
-   - Add a body / bridge-admittance filter.
-   - Then **four strings coupled through a shared bridge**.
+   - ✅ Localised finger pluck at L/3; ✅ speaking-length tuning; ✅ the C#2 bronze kharaj; ✅ a one-way body filter (§3.5).
+   - **Next:**
+     - jawari-on tuning, compensating the +4–7 cent contact sharpening;
+     - two-way **string–body coupling** through a modal bridge admittance, then remove the separate body-drain loss term;
+     - **four strings (Pa, Sa, Sa, kharaj) on a shared bridge**, which is where much of the perceived drone depth comes from;
+     - a finger–string contact model for re-plucks.
 5. **2-D only after steps 1–2.**
    - Replace the ad-hoc nut split with a **2×2 anisotropic bridge/soundboard admittance**. In one step that gives the polarisation coupling, the radiated output (replacing the assumed 0.3·F_z mono weight) and the path to coupling all four strings.
    - Give the bridge transverse curvature or a groove, so the horizontal polarisation can buzz too.
@@ -280,4 +321,6 @@ uv run python sens2d.py              # sensitivity tables/figures
 uv run python study_thread_geometry.py   # §4(a) fixed-thread sweep
 uv run python study_crest_gap.py         # §4(b) modal vs independent FD
 uv run python study_thread_geometry_2d.py # §4(c) fixed-thread sweep, 1-D vs 2-D (~3 min)
+uv run python validate_statics.py        # §4(e) statics tests (~1 min)
+uv run python render_demo.py             # §3.5 kharaj + statics + finger pluck + body -> out/demo/ (~2 min)
 ```

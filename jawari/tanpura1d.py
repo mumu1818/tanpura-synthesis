@@ -14,6 +14,23 @@ Model (after van Walstijn et al., DAFx-16 / DAFx-17; see README.md):
     plus nut force, contact diagnostics and (optionally) the discrete energy balance.
 
 All of the time loop runs inside one numba @njit function (_run).
+
+Optional extensions (all OFF by default; the default behaviour is bit-identical to the original model):
+  * profile=(x_rel, h_rel): bridge surface relative to the string's rest line (e.g. from
+    statics.profile_for_dynamics); replaces the parabola h0 - curv (x - xb)^2 for the bridge points.
+  * static_init=True: start the time loop from the static equilibrium of the DISCRETE scheme with bridge
+    contact (q^0 = q^-1 = q_static), so runs with h > 0 somewhere (string pressed onto the bridge) do not
+    start with a click.  See static_state().
+  * T=<N>: tension override (default: from f1 and L as before).
+  * tune='speaking': retune T so the lowest LINEAR eigenfrequency including the thread spring (contact off)
+    equals f1 (the thread spring otherwise raises the pitch by ~9 cents).
+  * pluck='finger': localised finger-pad pluck at x_p (default L/3 from the bridge-side termination), raised-cosine
+    force density of width w_p, slow sin^2 pull (pluck_pull) and quick cos^2 release (pluck_release).  Unlike the
+    symmetric whole-string pulse it excites the even modes too.  pluck_disp sets the force amplitude from a target
+    static pad displacement (static compliance of the discrete scheme with the thread spring, contact off).
+  * loss='valette': per-mode losses from the Valette & Cuesta string model (air drag + visco-elastic bending loss
+    + constant internal loss) plus a body drain T Yb / L for a resistive bridge mobility Yb.  See loss_sigma().
+  Named parameter sets (DAFx-16 C3, the user's C#2 kharaj) are in presets.py.
 """
 from __future__ import annotations
 
@@ -42,6 +59,27 @@ DEFAULT = dict(
     # Newton
     tol=1e-18, maxit=60, guess=True,
     dur=3.0,
+    # optional extensions (None/False = original behaviour, bit-identical)
+    profile=None,        # (x_rel, h_rel) arrays: bridge surface relative to the rest line (+ = pressed)
+    static_init=False,   # start from the static equilibrium with bridge contact
+    T=None,              # tension override [N]
+    tune=None,           # None | 'speaking'
+    # finger-pad pluck (pluck='finger'; None = the whole-string pulse above, unchanged)
+    pluck=None,          # None | 'finger'
+    xp=None,             # pluck position from the bridge-side termination [m]; None -> L/3
+    wp=0.012,            # pad width [m] (raised-cosine force density, unit integral)
+    pluck_pull=0.040,    # slow pull: sin^2 force ramp duration [s]
+    pluck_release=0.002, # quick release: cos^2 force drop duration [s]
+    pluck_disp=None,     # target static pad displacement [m]; sets the force amplitude (overrides Fe_amp)
+    # optional physical loss model (loss='valette'; None = the Woodhouse form above, unchanged)
+    loss=None,           # None | 'valette'
+    eta_air=1.8e-5,      # air dynamic viscosity [Pa s]
+    rho_air=1.2,         # air density [kg/m^3]
+    delta_ve=4.5e-3,     # visco-elastic loss factor of the bending energy (Valette's delta_ve)
+    Qte_inv=2.03e-4,     # frequency-independent loss factor (thermo-elastic + other internal)
+    Yb=0.0,              # bridge (body) mobility scale [s/kg] (plate mobility): body drain sigma_b = T Re Y(f) / L
+    mb=0.0,              # bridge mass [kg] loading the plate: Re Y = Yb / (1 + (2 pi f mb Yb)^2)
+    fb=0.0,              # first body mode [Hz]: below it Re Y rolls off as (f/fb)^2 / (1 + (f/fb)^2); 0 = no roll-off
 )
 
 
@@ -68,9 +106,13 @@ def build(p):
     f1 = p["f1"]
     # tension such that mode 1 is exactly f1 including stiffness
     T = mu * (2 * L * f1) ** 2 - EI * (np.pi / L) ** 2
+    if p.get("T") is not None:
+        T = float(p["T"])
     fs = p["fs"]; dt = 1.0 / fs
     ii = np.arange(1, 5000)
     beta = ii * np.pi / L
+    if p.get("tune"):
+        T = tune_tension(p, T, mu, EI, L, beta)
     om = np.sqrt((T * beta ** 2 + EI * beta ** 4) / mu)
     if p.get("M"):
         M = int(p["M"])
@@ -81,6 +123,8 @@ def build(p):
     ii, beta, om = ii[:M], beta[:M], om[:M]
     if p["lossless"]:
         sig = np.zeros(M)
+    elif p.get("loss") is not None:
+        sig = loss_sigma(p, T, mu, EI, L, beta, om)
     else:
         eta = (T * (p["etaF"] + p["etaA"] / om) + EI * p["etaB"] * beta ** 2) / (T + EI * beta ** 2)
         sig = om * eta / 2
@@ -91,7 +135,11 @@ def build(p):
     c = dt ** 2 * (1 + b) / (2 * m)
     om2s = (2 - 2 * a / (1 + b)) / dt ** 2          # omega*^2 of the equivalent energy-consistent scheme
     sigs = (1 - b) / ((1 + b) * dt)                   # sigma* of the equivalent scheme
-    ge = project(L, beta, p["xe"], p["we"])
+    if p.get("pluck") is not None:
+        xp, wp = pluck_window(p)
+        ge = project(L, beta, xp, wp)
+    else:
+        ge = project(L, beta, p["xe"], p["we"])
     if p["thread"]:
         gc = project(L, beta, p["xc"], p["wc"])
         kc, rc = p["kc"], p["rc"]
@@ -102,7 +150,15 @@ def build(p):
     thcc = float(np.sum(c * gc * gc))
     # bridge points
     xb = p["xb"]
-    if p["bridge"]:
+    if p["bridge"] and p.get("profile") is not None:
+        xj, dxb, hj = profile_points(p)
+        Nb = xj.size
+        Phi = np.ascontiguousarray(np.sin(xj[:, None] * beta[None, :]))   # (Nb, M)
+        v = Phi @ (c * gc)                                               # (Nb,)
+        Q = dxb * (Phi * c[None, :]) @ Phi.T
+        Qp = Q - kap * dxb * np.outer(v, v) / (1 + kap * thcc)
+        Qp = np.ascontiguousarray(0.5 * (Qp + Qp.T))
+    elif p["bridge"]:
         x0 = p["br_x0"] if p["br_x0"] is not None else (max(p["xc"], xb - 0.006) if p["thread"] else xb - 0.006)
         x1 = p["br_x1"] if p["br_x1"] is not None else xb + 0.006
         Nb = int(round((x1 - x0) / p["dxb"])) + 1
@@ -127,12 +183,211 @@ def build(p):
                 xj=xj, dxb=dxb, hj=hj, Nb=Nb, Phi=Phi, v=v, Qp=Qp, w0=w0, wn=wn, phio=phio)
 
 
-def excitation(p):
+def loss_sigma(p, T, mu, EI, L, beta, om):
+    """Modal decay rates sigma_i [1/s] for loss='valette' (Valette & Cuesta string-loss model plus a body drain).
+
+    Loss factor 1/Q_i = Q_air^-1 + Q_ve^-1 + Q_te^-1 at f_i = om_i / 2 pi:
+      Q_air^-1 = (eta_air + d sqrt(pi eta_air rho_air f)) / (mu f)        (viscous air drag on a cylinder, d = diameter)
+      Q_ve^-1  = delta_ve * EI beta^2 / (T + EI beta^2)                    (visco-elastic loss of the bending energy;
+                                                                           = 4 pi^2 mu EI delta_ve f^2 / T^2 for B -> 0)
+      Q_te^-1  = Qte_inv                                                   (frequency-independent internal loss)
+    sigma_i = pi f_i / Q_i + T Re Y(f_i) / L.  The last term is the energy drained into the bridge/body: a string end on
+    a support of mobility Y loses sigma = T Re(Y) / L.  Smooth (mean) mobility model:
+      Re Y(f) = Yb * r(f) / (1 + (2 pi f mb Yb)^2),   r(f) = (f/fb)^2 / (1 + (f/fb)^2)  (r = 1 if fb = 0)
+    i.e. an infinite-plate mobility Yb = 1/(8 sqrt(D rho h)), mass-loaded by the bridge mass mb at high frequency and
+    rolled off below the first body mode fb (stiffness-controlled plate).  Body resonances are not resolved."""
+    if p["loss"] != "valette":
+        raise ValueError(f"unknown loss model {p['loss']!r}")
+    f = om / (2 * np.pi)
+    d = np.sqrt(4.0 * p["A"] / np.pi)
+    q_air = (p["eta_air"] + d * np.sqrt(np.pi * p["eta_air"] * p["rho_air"] * f)) / (mu * f)
+    q_ve = p["delta_ve"] * EI * beta ** 2 / (T + EI * beta ** 2)
+    qinv = q_air + q_ve + p["Qte_inv"]
+    ReY = np.full_like(f, float(p["Yb"]))
+    if p.get("fb"):
+        r2 = (f / p["fb"]) ** 2
+        ReY *= r2 / (1.0 + r2)
+    if p.get("mb"):
+        ReY /= 1.0 + (2 * np.pi * f * p["mb"] * p["Yb"]) ** 2
+    return np.pi * f * qinv + T * ReY / L
+
+
+def pluck_window(p):
+    """(x_p, w_p) of the finger-pad pluck: x_p defaults to L/3 from the bridge-side termination."""
+    if p["pluck"] != "finger":
+        raise ValueError(f"unknown pluck option {p['pluck']!r}")
+    xp = p["L"] / 3.0 if p.get("xp") is None else float(p["xp"])
+    wp = float(p["wp"])
+    if xp - wp / 2 <= 0.0 or xp + wp / 2 >= p["L"]:
+        raise ValueError("finger pad must lie inside (0, L)")
+    return xp, wp
+
+
+def static_compliance(s):
+    """Static pad displacement per unit excitation force, ge^T K^-1 ge, of the DISCRETE scheme with the thread
+    spring (contact off): K = diag(m om*^2) + kc gc gc^T (Sherman-Morrison)."""
+    D = s["m"] * s["om2s"]
+    ge, gc, kc = s["ge"], s["gc"], s["kc"]
+    a = np.sum(ge * ge / D)
+    if kc == 0.0:
+        return float(a)
+    b = np.sum(ge * gc / D)
+    g = np.sum(gc * gc / D)
+    return float(a - kc * b * b / (1.0 + kc * g))
+
+
+def excitation_amp(p, s=None):
+    """Force amplitude: Fe_amp, or pluck_disp / static compliance if pluck_disp is set."""
+    if p.get("pluck_disp") is None:
+        return p["Fe_amp"]
+    if s is None:
+        s = build(p)
+    return float(p["pluck_disp"]) / static_compliance(s)
+
+
+def profile_points(p):
+    """Bridge points for a tabulated profile p['profile'] = (x_rel, h_rel): spacing dxb over the profile
+    support (or [br_x0, br_x1]), shifted so that the profile maximum (crest) is a point; h0 is added."""
+    xp, hp = (np.asarray(a, float) for a in p["profile"])
+    x0 = p["br_x0"] if p["br_x0"] is not None else float(xp[0])
+    x1 = p["br_x1"] if p["br_x1"] is not None else float(xp[-1])
+    dxb = float(p["dxb"])
+    xj = x0 + dxb * np.arange(int(np.floor((x1 - x0) / dxb + 1e-9)) + 1)
+    xcr = float(xp[np.argmax(hp)])
+    if x0 <= xcr <= x1:
+        k0 = int(np.argmin(np.abs(xj - xcr)))
+        xj = xj + (xcr - xj[k0])
+    xj = xj[(xj >= max(x0, xp[0]) - 1e-12) & (xj <= min(x1, xp[-1]) + 1e-12)]
+    if xj[0] <= 0.0 or xj[-1] >= p["L"]:
+        raise ValueError("bridge profile must lie inside (0, L)")
+    hj = np.interp(xj, xp, hp) + p["h0"]
+    return xj, dxb, hj
+
+
+def lowest_linear_freq(T, mu, EI, L, beta, gc, kc, M, dt=0.0):
+    """Lowest undamped eigenfrequency (Hz) of the M-mode string + thread spring (no contact).
+    dt > 0: exact eigenfrequency of the DISCRETE scheme (exact-pole modal update with the trapezoidal thread
+    force), from the secular equation 1 + kc cos(th) sum_i c_i g_i^2 / (2 cos th - a_i) = 0, th = omega dt,
+    with a_i = 2 cos(omega_i dt), c_i = dt^2/m (lossless).  dt = 0: continuous-time eigenvalue problem."""
+    from scipy.optimize import brentq
+    om = np.sqrt((T * beta[:M] ** 2 + EI * beta[:M] ** 4) / mu)
+    g2 = gc[:M] ** 2
+    m = mu * L / 2
+    if kc == 0.0:
+        return float(om[0] / (2 * np.pi))
+    if dt <= 0.0:
+        def F(w):
+            return 1.0 + (kc / m) * np.sum(g2 / (om ** 2 - w * w))
+        w = brentq(F, om[0] * (1 + 1e-12), om[1] * (1 - 1e-12), xtol=1e-14 * om[0])
+        return float(w / (2 * np.pi))
+    thi = om * dt
+
+    def G(th):
+        # 2 cos(th) - 2 cos(th_i) written without cancellation
+        den = -4.0 * np.sin(0.5 * (th + thi)) * np.sin(0.5 * (th - thi))
+        return 1.0 + kc * np.cos(th) * (dt * dt / m) * np.sum(g2 / den)
+    th = brentq(G, thi[0] * (1 + 1e-12), thi[1] * (1 - 1e-12), xtol=1e-15 * thi[0])
+    return float(th / (2 * np.pi * dt))
+
+
+def tune_tension(p, T0, mu, EI, L, beta):
+    """tune='speaking': tension for which the lowest linear eigenfrequency of the DISCRETE scheme with the thread
+    spring (contact off) equals f1.  The mode count (modes below fmax) is kept consistent with the tuned T."""
+    if p["tune"] != "speaking":
+        raise ValueError(f"unknown tune option {p['tune']!r}")
+    if not p["thread"]:
+        return T0
+    from scipy.optimize import brentq
+    dt = 1.0 / p["fs"]
+    Mmax = int(np.sum(np.sqrt((0.7 * T0 * beta ** 2 + EI * beta ** 4) / mu) / (2 * np.pi) < p["fmax"])) + 1
+    if p.get("M"):
+        Mmax = max(Mmax, int(p["M"]))
+    gc = project(L, beta[:Mmax], p["xc"], p["wc"])
+
+    def nmodes(T):
+        return int(p["M"]) if p.get("M") else \
+            int(np.sum(np.sqrt((T * beta ** 2 + EI * beta ** 4) / mu) / (2 * np.pi) < p["fmax"]))
+    M = nmodes(T0)
+    T = T0
+    for _ in range(6):
+        T = brentq(lambda TT: lowest_linear_freq(TT, mu, EI, L, beta, gc, p["kc"], M, dt) - p["f1"],
+                   0.7 * T0, 1.05 * T0, xtol=1e-13 * T0)
+        if nmodes(T) == M:
+            break
+        M = nmodes(T)
+    return T
+
+
+def static_state(p, s, maxit=200):
+    """Static equilibrium of the DISCRETE scheme with bridge contact and thread spring.
+
+    Fixed point q^{n+1} = q^n = q^{n-1} = q of the update:  m om*^2_i q_i = g_c,i F_c + dxb sum_j Phi_ji f_j
+    with F_c = -k_c g_c.q (trapezoidal thread force at rest) and f_j = k_b [h_j - Phi_j q]_+^alpha (the
+    discrete-gradient contact force at rest).  Newton on the convex potential with backtracking.
+    Returns (q, info)."""
+    M = s["M"]
+    q = np.zeros(M)
+    info = dict(static_force=0.0, thread_force=0.0, n_active=0, max_pen=0.0, iters=0, residual=0.0)
+    if not p["bridge"] or np.max(s["hj"]) <= 0.0:
+        return q, info
+    Kd = s["m"] * s["om2s"]
+    gc, kc = s["gc"], s["kc"]
+    Phi, hj, dxb = s["Phi"], s["hj"], s["dxb"]
+    kb, al = float(p["kb"]), float(p["alpha"])
+
+    def energy(qq):
+        eta = np.maximum(hj - Phi @ qq, 0.0)
+        return 0.5 * np.sum(Kd * qq * qq) + 0.5 * kc * (gc @ qq) ** 2 + dxb * kb / (al + 1) * np.sum(eta ** (al + 1))
+
+    it = 0
+    for it in range(1, maxit + 1):
+        eta = hj - Phi @ q
+        act = eta > 0
+        fa = kb * eta[act] ** al
+        R = Kd * q + kc * gc * (gc @ q) - dxb * Phi[act].T @ fa
+        J = np.diag(Kd) + kc * np.outer(gc, gc)
+        if act.any():
+            wgt = dxb * kb * al * eta[act] ** (al - 1)
+            J += (Phi[act].T * wgt) @ Phi[act]
+        dq = np.linalg.solve(J, -R)
+        E0 = energy(q)
+        tstep = 1.0
+        while energy(q + tstep * dq) > E0 + 1e-4 * tstep * (R @ dq) and tstep > 1e-12:
+            tstep *= 0.5
+        q = q + tstep * dq
+        if np.max(np.abs(tstep * dq)) < 1e-17 + 1e-13 * np.max(np.abs(q)):
+            break
+    eta = hj - Phi @ q
+    act = eta > 0
+    fa = kb * np.maximum(eta, 0.0) ** al
+    R = Kd * q + kc * gc * (gc @ q) - dxb * Phi.T @ fa
+    info = dict(static_force=float(dxb * fa.sum()), thread_force=float(-kc * (gc @ q)), n_active=int(act.sum()),
+                max_pen=float(np.max(eta)), iters=it, residual=float(np.max(np.abs(R))),
+                x_active=s["xj"][act].copy())
+    return q, info
+
+
+def initial_state(p, s):
+    """q^0 = q^-1 used by _run: zeros, or the static equilibrium if p['static_init']."""
+    if p.get("static_init"):
+        return static_state(p, s)
+    return np.zeros(s["M"]), None
+
+
+def excitation(p, s=None):
+    """Excitation force history F_e(t) (applied through the window ge): sin^2 rise, cos^2 fall.
+    Whole-string pulse (default): Fe_rise / Fe_fall.  Finger pluck (pluck='finger'): slow pull pluck_pull, quick
+    release pluck_release.  Amplitude Fe_amp, or set from pluck_disp (needs the setup s; built if not given)."""
     fs = p["fs"]
-    tr = np.arange(int(round(p["Fe_rise"] * fs))) / fs
-    tf = np.arange(int(round(p["Fe_fall"] * fs))) / fs
-    return np.concatenate([p["Fe_amp"] * np.sin(0.5 * np.pi * tr / p["Fe_rise"]) ** 2,
-                           p["Fe_amp"] * np.cos(0.5 * np.pi * tf / p["Fe_fall"]) ** 2, [0.0]])
+    if p.get("pluck") is not None:
+        rise, fall = p["pluck_pull"], p["pluck_release"]
+    else:
+        rise, fall = p["Fe_rise"], p["Fe_fall"]
+    amp = excitation_amp(p, s)
+    tr = np.arange(int(round(rise * fs))) / fs
+    tf = np.arange(int(round(fall * fs))) / fs
+    return np.concatenate([amp * np.sin(0.5 * np.pi * tr / rise) ** 2,
+                           amp * np.cos(0.5 * np.pi * tf / fall) ** 2, [0.0]])
 
 
 @njit(cache=True, inline="always")
@@ -180,10 +435,14 @@ def _scalar_root(a, eta_star, phi):
 
 @njit(cache=True)
 def _run(N, a, b, c, ge, Fe, gc, kap, lam, thcc, kc, rc, use_bridge, Phi, hj, dxb, v, Qp, kb, alpha,
-         w0, wn, phio, tol, maxit, rec_energy, m, om2s, sigs, dt, guess):
+         w0, wn, phio, tol, maxit, rec_energy, m, om2s, sigs, dt, guess, q_init):
     M = a.shape[0]
     Nb = hj.shape[0]
     q0 = np.zeros(M); q1 = np.zeros(M); q2 = np.zeros(M); qt = np.zeros(M)
+    has_init = False
+    for i in range(M):
+        if q_init[i] != 0.0:
+            has_init = True
     Fbr = np.zeros(N); Fnut = np.zeros(N); Fbs = np.zeros(N); Fcs = np.zeros(N); F0s = np.zeros(N)
     yo = np.zeros(N); H = np.zeros(N); Dcum = np.zeros(N); Wcum = np.zeros(N); pen = np.zeros(N)
     eta_p = hj.copy()   # eta^{n-1}
@@ -194,6 +453,18 @@ def _run(N, a, b, c, ge, Fe, gc, kap, lam, thcc, kc, rc, use_bridge, Phi, hj, dx
     act = np.zeros(Nb, dtype=np.int64)
     J = np.zeros((Nb, Nb)); rhs = np.zeros(Nb)
     uc_p = 0.0; uc_c = 0.0; ue_p = 0.0; ue_c = 0.0
+    if has_init:
+        # start from rest at q_init (q^-1 = q^0 = q_init): set displacements, gaps and thread/excitation coords
+        for i in range(M):
+            q0[i] = q_init[i]; q1[i] = q_init[i]
+            uc_p += gc[i] * q_init[i]
+            ue_p += ge[i] * q_init[i]
+        uc_c = uc_p; ue_c = ue_p
+        for j in range(Nb):
+            acc = 0.0
+            for i in range(M):
+                acc += Phi[j, i] * q_init[i]
+            eta_p[j] = hj[j] - acc; eta_c[j] = eta_p[j]; eta_n[j] = eta_p[j]
     # stats
     max_pen = 0.0; j_max_pen = -1; n_contact = 0; tot_it = 0; max_it = 0; n_fail = 0; max_res = 0.0
     max_Fc = 0.0; edge_pen = 0.0; max_nact = 0
@@ -378,22 +649,28 @@ def simulate(over=None, energy=False):
         p.update(over)
     s = build(p)
     N = int(round(p["dur"] * p["fs"]))
-    Fe = excitation(p)
+    Fe = excitation(p, s)
+    q_init, stat_info = initial_state(p, s)
     t0 = time.time()
     out = _run(N, s["a"], s["b"], s["c"], s["ge"], Fe, s["gc"], s["kap"], s["lam"], s["thcc"], s["kc"],
                s["rc"], bool(p["bridge"]), s["Phi"], s["hj"], s["dxb"], s["v"], s["Qp"], float(p["kb"]),
                float(p["alpha"]), s["w0"], s["wn"], s["phio"], float(p["tol"]), int(p["maxit"]),
-               bool(energy), s["m"], s["om2s"], s["sigs"], s["dt"], bool(p["guess"]))
+               bool(energy), s["m"], s["om2s"], s["sigs"], s["dt"], bool(p["guess"]), q_init)
     cpu = time.time() - t0
     Fbr, Fnut, Fbs, Fcs, F0s, yo, H, Dcum, Wcum, pen, st = out
     stats = dict(max_pen=st[0], x_max_pen=(s["xj"][int(st[1])] if st[1] >= 0 else np.nan),
                  contact_frac=st[2] / N, newton_mean=(st[3] / st[2] if st[2] > 0 else 0.0),
                  newton_max=int(st[4]), newton_fail=int(st[5]), max_res=st[6], max_Fc=st[7], edge_pen=st[8],
                  max_active=int(st[9]))
+    if stat_info is not None:
+        stats["static"] = stat_info
     return p, s, dict(Fbridge=Fbr, Fnut=Fnut, Fb=Fbs, Fc=Fcs, F0=F0s, y=yo, H=H, D=Dcum, W=Wcum, pen=pen,
                       stats=stats, cpu=cpu, N=N)
 
 
 def thread_lift(p):
     """height of the string above the bridge surface at the thread position (the 'thread height')."""
+    if p.get("profile") is not None:
+        xp, hp = p["profile"]
+        return -(float(np.interp(p["xc"], xp, hp)) + p["h0"])
     return -(p["h0"] - p["curv"] * (p["xc"] - p["xb"]) ** 2)

@@ -47,8 +47,50 @@ sf.write('out/jawari_demo.wav', 0.9*y/abs(y).max(), 44100); print('wrote out/jaw
 | `metrics.py` | jawari metrics: buzz dB, hf fraction, centroid, smoothed spectral peak, spectrogram PNG |
 | `common.py`, `common2d.py` | DC block plus band-limited decimation to 44.1 kHz; output directories |
 | `MODEL_1D.md`, `MODEL_2D.md` | detailed model notes, validation tables, results, limitations |
+| `statics.py`, `STATICS.md` | rest state of the string over a parametrised or **measured** bridge (`BridgeProfile.from_csv`), finite-diameter thread, break angle, bending stiffness; `profile_for_dynamics()` feeds it to `tanpura1d` |
+| `validate_statics.py`, `crosscheck_statics.py` | statics tests (8/8 pass) and an independent analytic solver (agrees to < 0.001 µm) |
+| `study_statics.py` | crest gap vs thread position, thread diameter, break angle, EI on/off; C3 dynamic sweep from statics |
+| `presets.py` | `preset('kharaj')` etc.: the user's string, finger pluck, statics geometry, tuning, losses (see Presets) |
+| `study_kharaj.py` | kharaj renders: nominal, old pulse, thread ±0.1/±0.3 mm, steel, linear, loss and convergence checks |
+| `body.py`, `BODY.md`, `demo_body.py` | body/radiation filter (tumba + tabli modes, dense HF modes, stereo, optional room) and `apply_ir` for a measured body response |
+| `render_demo.py` | full chain: kharaj → statics → string → body; single pluck + re-plucked drone → `out/demo/` |
 
 All outputs go to `jawari/out/` (git-ignored); set `TANPURA_OUT` to change this.
+
+## Presets
+
+`presets.py`: `preset(name, **overrides)` returns a parameter dict for `tanpura1d.simulate`.
+
+```python
+from presets import preset; import tanpura1d as T1
+p, s, r = T1.simulate(preset("kharaj", dur=12.0))            # the user's kharaj, finger pluck at L/3
+p = preset("kharaj", thread_shift=+0.1e-3)                    # thread 0.1 mm towards the nut from grazing
+```
+
+| name | string |
+|---|---|
+| `dafx16_c3` | exactly `tanpura1d.DEFAULT` (DAFx-16 C3, the reference) |
+| `kharaj` (alias `kharaj_bronze`) | the user's kharaj: 0.7 mm **phosphor bronze**, 1.05 m, C#2 = 69.4 Hz (material as the user stated) |
+| `kharaj_steel` | the same string in steel (the `shared/params.py` values), on a bridge filed for steel |
+
+The kharaj presets:
+
+- **Rest geometry from `statics.py`.**
+  - The thread is auto-placed so the crest just grazes (`target_gap=0`), and `thread_shift` moves it from there.
+  - The run starts from static equilibrium (`static_init`).
+  - The statics are re-solved at the tuned tension.
+- **Tuning.** `tune='speaking'` gives 69.4000 Hz with contact off. Bridge contact adds about +4 to +6 cents, and up to +25 cents late in the note when a pressed crest stays in permanent contact. Neither is compensated.
+- **Discretisation.** All modes below 20 kHz: 140 (bronze) or 120 (steel). That means 124 or 138 bridge points and about 2 s of CPU per second of audio.
+- **Excitation.** New `pluck='finger'`: 12 mm pad at L/3, 40 ms pull, 2 ms release, 2 mm deep. Unlike the old pulse, it also excites even modes.
+- **Losses.** New `loss='valette'`: air, visco-elastic and internal string losses plus a smooth body drain. T60 is 41 / 21 / 8.5 / 4.5 / 1.5 s at 69 / 139 / 500 / 1000 / 2000 Hz, against 11 / 11 / 8.6 / 4.0 / 0.9 s with the old defaults.
+
+**Assumptions to replace with measurements.** Values and sources are in the `presets.py` docstring.
+- Bridge: parabola c = 3/m, crest 2 mm from the back face, 40 mm long.
+- Thread 0.2 mm; break angle 10°.
+- Speaking-length angle ψ, designed per string: 5.79° (bronze) or 6.94° (steel). A bridge filed for one material does not graze with the other.
+- Body-drain mobility (the least certain loss term).
+
+`python study_kharaj.py` renders every case to `out/kharaj/`: nominal, old pulse, thread ±0.1 / ±0.3 mm, steel, linear reference, loss sensitivity and convergence.
 
 ## Instrument facts from the user
 
@@ -56,12 +98,25 @@ All outputs go to `jawari/out/` (git-ignored); set `TANPURA_OUT` to change this.
 - It is plucked at about **1/3 (or 2/3) of the length from the bridge** toward the nut.
 - The 1-D renders sound close but lack **body depth**.
 
+## Body
+
+`body.apply_body(force, 44100, preset)` turns the bridge force into radiated sound. It is a one-way filter.
+
+| preset | use |
+|---|---|
+| `tanpura_male` | **use for the kharaj / a male tanpura in C#**: air mode A0 at 65 Hz (just below the kharaj fundamental), soundboard T1 at 120 Hz (between Pa and Sa) |
+| `tanpura` | generic; A0 85 Hz and T1 145 Hz were placed for a 131 Hz test string. On the kharaj this thins the fundamental and makes the octave boom (+13 dB). |
+| `tanpura_small` | female or smaller instrument |
+
+Both male presets are unmeasured estimates. A measured response through `apply_ir` replaces them; `BODY.md` explains how to record one.
+
 ## Known gaps
 
 These are the next steps; see [`../docs/EVALUATION.md`](../docs/EVALUATION.md) §6–7.
-- The rest geometry is assumed (crest exactly grazing), not solved from statics on a measured bridge profile.
-- The losses are untuned, so the decay is too fast.
-- The pluck is idealised.
-- It uses the C3 string from DAFx-16, not C#2 kharaj.
-- There is no body and no other strings.
-- The nut-coupling strength of the 2-D model is not measured.
+- **Bridge geometry is assumed.** It is a parabola, with a 0.2 mm thread and a 10° break angle. Load the measured profile with `statics.BridgeProfile.from_csv`.
+- **The body is assumed.** It is a one-way filter with no string–body coupling. Replace it with a measured response via `body.apply_ir`.
+- **Losses are not fitted to a recording.** The Valette coefficients and the body-drain mobility are unverified.
+- **Pitch.** Bridge contact makes the sounding pitch +4 to +7 cents sharp; there is no jawari-on tuning yet.
+- **Other strings.** There is only one string: no Pa/Sa/Sa and no sympathetic coupling.
+- **The drone is simplified.** Every pluck is identical, and the finger does not damp the string on re-pluck.
+- **2-D.** The 2-D model does not yet use the statics geometry, and its nut-coupling strength is unmeasured.
