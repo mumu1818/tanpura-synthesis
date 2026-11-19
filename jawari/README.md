@@ -42,6 +42,7 @@ sf.write('out/jawari_demo.wav', 0.9*y/abs(y).max(), 44100); print('wrote out/jaw
 | `fdstring.py`, `jlib.py` | independent finite-difference cross-check model plus helpers |
 | `study_thread_geometry.py` | fixed-size thread slid along the bridge: shows µm-scale sensitivity (EVALUATION §4a) |
 | `study_crest_gap.py` | crest-gap sweep, modal vs FD (EVALUATION §4b) |
+| `study_thread_geometry_2d.py` | the same fixed-thread sweep for 1-D vs 2-D: geometry dominates polarisation (EVALUATION §4c) |
 | `diag_bands.py` | shows why 4× oversampling is used (contact chatter near fs/4) |
 | `metrics.py` | jawari metrics: buzz dB, hf fraction, centroid, smoothed spectral peak, spectrogram PNG |
 | `common.py`, `common2d.py` | DC block plus band-limited decimation to 44.1 kHz; output directories |

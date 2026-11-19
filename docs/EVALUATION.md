@@ -131,6 +131,9 @@ From [`jawari/render1d.py`](../jawari/render1d.py); bridge force, 10 s.
 - **Energy:** the scheme is energy-consistent. The lossless drift is 3e-11. With friction on, energy only decreases, and the balance closes to 2e-11.
 - **Reduction to 1-D:** it reproduces the 1-D model to 2e-9 before the chaotic contact dynamics diverge.
 - **Speed:** ≈ 1.2 s of CPU per second of audio. Validation is in [`jawari/validate2d.py`](../jawari/validate2d.py).
+- **Independent re-run:** every validation number, and six renders, reproduced bit-for-bit.
+- **Perceptual flaw.** The bridge face is flat across the string, so the horizontal polarisation never touches it. Energy that migrates into it stops buzzing. With 1 cent of nut coupling, the late mono tone is *duller* than in 1-D: mean buzz over 4–8 s is about −30 dB, against −18 dB.
+- **Before this beats 1-D perceptually** it needs transverse bridge curvature or a string groove, so that the contact normal depends on z, and a frictional (stick-slip) lateral thread.
 
 ## 4. New finding: thread sensitivity is a micrometre-geometry effect
 
@@ -149,23 +152,47 @@ Published work says the 1-D model *"fails to replicate the jvari's strong depend
 
 **(b) Cross-check.** The independent FD model ([`jawari/study_crest_gap.py`](../jawari/study_crest_gap.py)) agrees. A 1 µm gap moves the buzz by 8–14 dB; 3 µm moves it by 6–60 dB; and the gap also makes the jawari **depend on pluck strength**. That matches how players describe an "open" or "closed" jawari and why soft and hard strokes sound different.
 
-**(c) Two polarisations add sensitivity mainly through the nut coupling, which no source constrains.** Thread sensitivity S_track is the across-position spread of the buzz track. The noise floor comes from 1 µm "twin" runs.
+**(c) Two polarisations are a second-order effect next to geometry.**
 
-| Model | S_track | Noise floor |
-|---|---|---|
-| 1-D | 3.76 dB | 0.13 dB, so 29× the floor |
-| 2-D, nominal coupling (1 cent) | 4.44 dB | 0.57 dB |
-| 2-D, strong coupling (5 cents) | 4.83 dB | 0.02 dB |
+*The same fixed-thread sweep in 1-D and 2-D* ([`jawari/study_thread_geometry_2d.py`](../jawari/study_thread_geometry_2d.py)). Each run starts from the computed static equilibrium; values are mean buzz over 0.3–3 s on the vertical bridge force.
 
-With 5 cents of coupling, onset delays spread over seconds and the jawari lasts 10 s at 3 mm but never reaches −15 dB at 8 mm. Friction at the published coefficient has almost no effect (μ ≤ 0.15, ~3 % of the energy) ([Fig. 6](figures/06_thread_sensitivity_1d_vs_2d.png), [Fig. 7](figures/07_buzz_tracks_by_thread_position.png)).
+| Model | x_c = 4.9 mm (gap +3 µm) | 5.0 (0) | 5.1 (−3 µm) | 5.2 (−6 µm) | Range |
+|---|---|---|---|---|---|
+| 1-D | −19.9 | −11.2 | −19.2 | −24.8 | 13.6 dB |
+| 2-D, 1 cent nut coupling | −22.4 | −9.0 | −21.1 | −27.2 | 18.2 dB |
+| 2-D, 5 cent nut coupling | −22.7 | −13.8 | −21.9 | −31.9 | 18.1 dB |
 
-**(d) Why this points at statics, not polarisation.** On an *exact parabola*, a fixed-diameter thread moved along the bridge only *translates* the geometry. The tangent point stays √(d/c) beyond the thread, so placement would have no effect at all. Real thread sensitivity must therefore come from three things:
+A 0.1 mm thread move costs 8–13 dB **in every variant**.
 
-- the **non-parabolic, real bridge profile**;
-- the **finite thread diameter**;
-- the **static equilibrium of the string over thread and bridge**.
+*The DAFx-17-style 3–8 mm sweep (crest kept grazing).* Here the 1-D and 2-D models differ only modestly. S_track is the across-position spread of the smoothed buzz track. The noise floor comes from 1 µm "twin" runs and varies with position (0.01–0.65 dB), so the effects are at least ~6× the floor.
 
-The statics include the break angle to the tailpiece and bending-stiffness rounding of order φ·√(EI/T), which is **tens of µm** for a few degrees. That is far larger than the µm tolerances the sound depends on. No published model computes this rest state from statics on a *measured* bridge profile.
+| Model | S_track |
+|---|---|
+| 1-D | 3.76 dB |
+| 2-D, 1 cent | 4.44 dB |
+| 2-D, 5 cents | 4.83 dB |
+
+The nut force, which converges better, gives 3.0–3.3 dB for 1-D and 4.2–4.5 dB for 2-D. With 5 cents, onset delays spread over seconds ([Fig. 6](figures/06_thread_sensitivity_1d_vs_2d.png), [Fig. 7](figures/07_buzz_tracks_by_thread_position.png)).
+
+*Where the 2-D increment comes from.* It comes **entirely** from the assumed nut anisotropy plus a laterally gripping thread. Removing either gives back the 1-D result exactly, while friction and tension modulation change nothing. The mechanism:
+
+- Only the vertical polarisation touches the bridge, and intermittent contact sharpens it by 1.0–1.7 cents relative to the horizontal one.
+- The amount of sharpening depends on thread position.
+- It competes with the nut split, which changes how much energy the two polarisations exchange: the coupling-induced horizontal energy share is +0.18 / +0.28 / +0.44 at 3 / 5 / 8 mm.
+
+This is physically sensible (Weinreich-type coupling of nearly degenerate polarisations), but its strength is unmeasured. In a real tanpura the dominant coupler is probably the **soundboard-loaded bridge**, not the nut.
+
+**(d) Why this points at statics, not polarisation.** What a thread move does to the crest gap depends entirely on what *else* fixes the string's line.
+
+- **Model in (a)–(c):** the string is pinned at x=0. Sliding the thread tilts the string and changes the gap by µm.
+- **If only the thread fixed the string's direction** (on an exact parabola): sliding a fixed-diameter thread would merely translate the geometry. The tangent point stays √(d/c) beyond the thread, so there would be no effect at all.
+- **A real tanpura is neither.** The string continues past the thread, over the back of the bridge, to the tailpiece. Its rest line is set by:
+  - the **non-parabolic, real bridge profile**;
+  - the **finite thread diameter**;
+  - the **break angle** to the tailpiece;
+  - **bending-stiffness rounding** of order φ·√(EI/T), which is **tens of µm** for a few degrees.
+
+Every one of these is far larger than the µm tolerances the sound depends on. No published model computes this rest state from statics on a *measured* bridge profile.
 
 **Hypothesis worth testing.** The jiva's job is to set a µm-scale gap and grazing angle at the bridge crest. Thread-placement sensitivity follows from the statics of the string over a real bridge profile, and the second polarisation is a refinement, not the root cause. This is falsifiable with one instrument, a profile cast and a thread sweep.
 
@@ -214,7 +241,11 @@ The most relevant published work:
    - Use the target string (C#2 kharaj, not C3).
    - Add a body / bridge-admittance filter.
    - Then **four strings coupled through a shared bridge**.
-5. **2-D only after steps 1–2**, compared at equal energy and identical rest geometry. Measure the polarisation frequency split rather than guessing it.
+5. **2-D only after steps 1–2.**
+   - Replace the ad-hoc nut split with a **2×2 anisotropic bridge/soundboard admittance**. In one step that gives the polarisation coupling, the radiated output (replacing the assumed 0.3·F_z mono weight) and the path to coupling all four strings.
+   - Give the bridge transverse curvature or a groove, so the horizontal polarisation can buzz too.
+   - Compare 1-D and 2-D at equal vertical excitation and identical rest geometry, using the nut force, with noise-floor twins at *every* position.
+   - Measure the polarisation frequency split on a real string.
 6. **Real time.** Replace Newton with the JSV-2024 explicit or DAFx-24 spline contact; that would also remove the need for 4× oversampling.
 7. **Perceptual test.** Run an online MUSHRA with Indian classical musicians: model vs recording vs sample library.
 
@@ -225,7 +256,9 @@ The most relevant published work:
 - **The excitation is idealised:** a whole-string force pulse that excites odd modes only.
 - **What is missing:** a body, other strings, and a measured profile.
 - **Only smoothed or averaged metrics are meaningful.** The contact dynamics are chaotic, so the fine trajectory is not converged.
-- **The 2-D sensitivity conclusion rests on an unmeasured parameter:** the nut-coupling strength.
+- **The 2-D sensitivity increment rests on an unmeasured parameter**, the nut-coupling strength. The friction law and its units (VT-2015) could not be verified; a near-Coulomb variant changes both damping and polarisation exchange substantially.
+- **The bridge-force output** includes a truncated termination-shear series, which converges slowly with mode count. For sensitivity studies the nut force is the cleaner signal.
+- **No independent 2-D cross-check yet:** the 2-D model has not been cross-checked against an independent 2-D implementation. Extending `fdstring.py` to two polarisations is the obvious test.
 
 ## 8. Reproduce
 
@@ -239,4 +272,5 @@ uv run python render2d.py --jobs 2   # thread sweep 1-D vs 2-D -> out/2d/ (~10 m
 uv run python sens2d.py              # sensitivity tables/figures
 uv run python study_thread_geometry.py   # §4(a) fixed-thread sweep
 uv run python study_crest_gap.py         # §4(b) modal vs independent FD
+uv run python study_thread_geometry_2d.py # §4(c) fixed-thread sweep, 1-D vs 2-D (~3 min)
 ```
