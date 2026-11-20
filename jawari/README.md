@@ -54,6 +54,8 @@ sf.write('out/jawari_demo.wav', 0.9*y/abs(y).max(), 44100); print('wrote out/jaw
 | `study_kharaj.py` | kharaj renders: nominal, old pulse, thread ±0.1/±0.3 mm, steel, linear, loss and convergence checks |
 | `body.py`, `BODY.md`, `demo_body.py` | body/radiation filter (tumba + tabli modes, dense HF modes, stereo, optional room) and `apply_ir` for a measured body response |
 | `render_demo.py` | full chain: kharaj → statics → string → body; single pluck + re-plucked drone → `out/demo/` |
+| `reference.py`, `REFERENCE.md` | analyser for a **recorded pluck** (own instrument or iTanpura): onset, f0/glide, B, partial envelopes, per-partial T60, pluck comb, pitch-relative jawari descriptors, attack, colour, stereo; `compare()` with a ranked list of mismatches and figures; `fit()` of gap, losses, pluck position. REFERENCE.md says how to record references |
+| `validate_reference.py` | analyser checks: synthetic plucks, model round trips (exact eigenvalues), fit recovery → `out/reference/validation/` |
 
 All outputs go to `jawari/out/` (git-ignored); set `TANPURA_OUT` to change this.
 
@@ -72,6 +74,11 @@ p = preset("kharaj", thread_shift=+0.1e-3)                    # thread 0.1 mm to
 | `dafx16_c3` | exactly `tanpura1d.DEFAULT` (DAFx-16 C3, the reference) |
 | `kharaj` (alias `kharaj_bronze`) | the user's kharaj: 0.7 mm **phosphor bronze**, 1.05 m, C#2 = 69.4 Hz (material as the user stated) |
 | `kharaj_steel` | the same string in steel (the `shared/params.py` values), on a bridge filed for steel |
+| `sa` | the two Sa (jodi) strings: C#3 = 138.8 Hz (2 × 69.4), 0.50 mm **steel** (assumed gauge), 115 modes, its own ψ = 4.51° and thread at 4.00 mm |
+| `pa` | the pancham: G#2 = 104.1 Hz (3/2 × 69.4), 0.55 mm **phosphor bronze** (assumed gauge and material), 140 modes, ψ = 4.54° |
+| `pa_steel` | the same pancham in steel (alternative material), ψ = 5.12° |
+
+`sa`, `pa` and `pa_steel` are built like the kharaj (statics geometry, thread auto-placed to graze, finger pluck at L/3, `valette` losses) on the same bridge, thread and body. The gauges come from two male-tanpura string-set listings; replace them with the user's measurements. `python render_strings.py` renders 12 s single plucks of Pa, Sa and kharaj and a 30 s Pa–Sa–Sa–kharaj drone (uncoupled strings, one body) to `out/strings/`. See [`STRINGS.md`](STRINGS.md) for the parameters, results and limitations, including the fast decay of Sa and Pa with the thread exactly grazing.
 
 The kharaj presets:
 

@@ -22,3 +22,7 @@ uv.lock
 
 # jawari/ simulation outputs (WAV/PNG/NPZ/results)
 jawari/out/
+
+# user reference recordings (copyrighted sample-app audio, private recordings): never commit
+references/*
+!references/.gitkeep

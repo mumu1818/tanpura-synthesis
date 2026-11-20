@@ -7,6 +7,8 @@
     p = preset("kharaj", thread_shift=+0.1e-3)     # thread moved 0.1 mm towards the nut from its grazing position
     p = preset("kharaj_steel")                     # same instrument design rule, steel string (shared/params.py)
     p = preset("dafx16_c3")                        # exactly tanpura1d.DEFAULT (DAFx-16 C3 reference)
+    p = preset("sa", dur=12.0)                     # the two middle (jodi) strings, C#3, 0.50 mm steel (ASSUMED gauge)
+    p = preset("pa", dur=12.0)                     # the first string (pancham), G#2, 0.55 mm bronze (ASSUMED gauge)
 
 Presets
 -------
@@ -17,6 +19,29 @@ Presets
                 docs/EVALUATION.md section 6 / README.md ("Instrument facts from the user"); the steel values of
                 shared/params.py are superseded there.  'kharaj_bronze' is an alias.
 'kharaj_steel'  the same string in steel (rho 7800, E 2e11; the values of shared/params.py), as the alternative.
+'sa'            the two Sa (jodi) strings: C#3 = 2 x 69.4 = 138.8 Hz, 0.50 mm STEEL.
+'pa'            the pancham string: G#2 = 3/2 x 69.4 = 104.1 Hz, 0.55 mm PHOSPHOR BRONZE.
+'pa_steel'      the same pancham in steel (0.55 mm), as the alternative.
+
+Pa and Sa strings (see STRINGS.md).  Same instrument as the kharaj: speaking length 1.05 m, the same bridge (parabola
+c = 3 /m, crest, length, edge radius), thread diameter, break angle, tailpiece, pluck (finger at L/3) and loss model.
+* Gauges/materials are ASSUMED (the user's own Pa/Sa gauges are not known; replace with a micrometer measurement):
+  two independent male-tanpura string-set listings agree with each other and with the user's 0.7 mm kharaj:
+  Pyramid 706/4 "Tanpura strings gents" (Thomann listing): 0.55 / 0.50 / 0.50 / 0.70 mm;
+  sangtar.com (2007), a 60" male tanpura: 1 bronze .022" (0.56 mm), 2 & 3 steel .020" (0.51 mm), 4 brass .028"
+  (0.71 mm).  Materials: the jodi (Sa) strings are steel in every source; the pancham is brass/bronze in the
+  sangtar set, in a Pyramid-set buyer's review and in sikhiwiki (one other page there says steel), hence 'pa' is
+  bronze (the user's kharaj material; brass, rho ~8500, E ~1.0e11, is within the assumption) and 'pa_steel' is
+  provided.  Tensions: Sa 129.5 N (660 MPa, ~30 % of music-wire strength), Pa 99.4 N (420 MPa).
+* Tuning: pure (beat-free) intervals on the user's kharaj, as a tanpura is tuned by ear: Sa = 2 x 69.4 Hz, Pa = 3/2 x
+  69.4 Hz (4 Pa = 3 Sa, 2 Pa = 3 kharaj).  The A440 equal-tempered values (138.59, 103.83 Hz) would be -2.6 and
+  -4.5 cents off these and beat against the kharaj's harmonics.  Override with f1=...
+* Bridge/thread: each string has its own jawari setting.  As for the kharaj, the speaking-length angle psi of each
+  string's track (equivalently the tilt the jawari is filed to under that string) is designed so that its thread
+  grazes at x_c0 = 4 mm at the tuned tension (PSI_STRING, from design_instrument()); the thread is then auto-placed at
+  the grazing root (target_gap=0).  With the kharaj's psi (5.79 deg) the Sa/Pa strings are pressed ~260 um into the
+  bridge at x_c = 4 mm; they graze only with the thread at 8.82 mm (Sa) / 8.77 mm (Pa) (common-bridge alternative:
+  preset('sa', psi_deg=PSI_DESIGN['bronze'], x_c0=8.8e-3); not the default, see STRINGS.md).
 
 Kharaj model (all presets except dafx16_c3)
 ------------------------------------------
@@ -64,6 +89,17 @@ MATERIALS = {
 # string ~160 um above the bridge everywhere; steel psi on bronze presses it ~260 um into the bridge everywhere.
 PSI_DESIGN = {"bronze": 5.7911, "steel": 6.9362}
 
+# The other strings of the user's male tanpura in C# (standard tuning Pa Sa Sa kharaj); gauges/materials ASSUMED
+# (module docstring).  geom overrides KHARAJ_GEOM; psi_deg from design_instrument(material, 4e-3, geom) (PSI_STRING).
+PSI_STRING = {"sa": 4.5052, "pa": 4.5361, "pa_steel": 5.1236}
+STRING_SPECS = {
+    "kharaj": dict(material="bronze", role="kharaj", geom={}),
+    "kharaj_steel": dict(material="steel", role="kharaj", geom={}),
+    "sa": dict(material="steel", role="sa", geom=dict(d=0.50e-3, f1=138.8, psi_deg=PSI_STRING["sa"])),
+    "pa": dict(material="bronze", role="pa", geom=dict(d=0.55e-3, f1=104.1, psi_deg=PSI_STRING["pa"])),
+    "pa_steel": dict(material="steel", role="pa", geom=dict(d=0.55e-3, f1=104.1, psi_deg=PSI_STRING["pa_steel"])),
+}
+
 # Instrument and string geometry (statics), all assumptions except d, L_speak, f1, bridge_len (shared/params.py).
 KHARAJ_GEOM = dict(
     d=0.7e-3, L_speak=1.05, f1=69.4,
@@ -100,7 +136,7 @@ KHARAJ_DYN = dict(
 )
 
 ALIASES = {"kharaj_bronze": "kharaj"}
-NAMES = ("dafx16_c3", "kharaj", "kharaj_bronze", "kharaj_steel")
+NAMES = ("dafx16_c3", "kharaj", "kharaj_bronze", "kharaj_steel", "sa", "pa", "pa_steel")
 
 
 # ----------------------------------------------------------------------------------------------- statics pipeline
@@ -109,17 +145,17 @@ def _profile(g):
                                      edge_radius=g["edge_radius"])
 
 
-def _string(material, g, T=None):
+def _string(material, g, T=None, role="kharaj"):
     m = MATERIALS[material]
-    st = S.String.kharaj(d=g["d"], L=g["L_speak"], f1=g["f1"], rho=m["rho"], E=m["E"])
-    st.name = f"kharaj ({g['d'] * 1e3:g} mm {m['label']})"
+    st = S.String.kharaj(d=g["d"], L=g["L_speak"], f1=g["f1"], rho=m["rho"], E=m["E"])   # round solid wire
+    st.name = f"{role} ({g['d'] * 1e3:g} mm {m['label']})"
     if T is not None:
         st.T = float(T)
     return st
 
 
-def _setup(material, g, T=None, psi=None, x_c=None):
-    st = _string(material, g, T)
+def _setup(material, g, T=None, psi=None, x_c=None, role="kharaj"):
+    st = _string(material, g, T, role)
     psi = PSI_DESIGN[material] if psi is None else psi
     return S.Setup(_profile(g), st, S.Thread(g["x_c0"] if x_c is None else x_c, g["d_t"]), phi_deg=g["phi_deg"],
                    psi_deg=psi, L_tail=g["L_tail"], L_speak=g["L_speak"])
@@ -164,7 +200,7 @@ def _tuned_T(t1, g, dyn):
 
 
 @functools.lru_cache(maxsize=64)
-def _geometry_cached(material, gkey, dkey):
+def _geometry_cached(material, gkey, dkey, role="kharaj"):
     g = dict(gkey)
     dyn = dict(dkey)
     T = _string(material, g).T
@@ -172,7 +208,7 @@ def _geometry_cached(material, gkey, dkey):
     roots0 = None
     xg = None
     for it in range(12):
-        su = _setup(material, g, T=T, psi=g["psi_deg"])
+        su = _setup(material, g, T=T, psi=g["psi_deg"], role=role)
         if xg is None:
             roots = graze_positions(su, g["target_gap"], h=g["statics_h"])
             roots0 = roots
@@ -194,7 +230,8 @@ def _geometry_cached(material, gkey, dkey):
         # T -> T_new is a contraction (factor ~0.03 per iteration): plain fixed-point iteration
         T = T_new
     # all grazing positions at the converged tension (reported; the first scan was at the untuned T)
-    roots = graze_positions(_setup(material, g, T=T, psi=g["psi_deg"]), g["target_gap"], h=g["statics_h"]) \
+    roots = graze_positions(_setup(material, g, T=T, psi=g["psi_deg"], role=role), g["target_gap"],
+                            h=g["statics_h"]) \
         or roots0
     info = dict(material=material, label=MATERIALS[material]["label"], psi_deg=su.psi_deg, x_c_graze=xg,
                 graze_roots=roots, x_c=xc, thread_shift=g["thread_shift"], crest_gap=rs.crest_gap,
@@ -204,14 +241,15 @@ def _geometry_cached(material, gkey, dkey):
     return d["t1"], info
 
 
-def kharaj_geometry(material="bronze", geom=None, dyn=None):
-    """Statics-derived tanpura1d overrides (L, xc, profile, rho, A, E, I, T, xe, we) and an info dict."""
+def kharaj_geometry(material="bronze", geom=None, dyn=None, role="kharaj"):
+    """Statics-derived tanpura1d overrides (L, xc, profile, rho, A, E, I, T, xe, we) and an info dict.
+    Any string of the instrument: geom overrides KHARAJ_GEOM (d, f1, psi_deg, ... ; see STRING_SPECS)."""
     g = dict(KHARAJ_GEOM)
     g.update(geom or {})
     dd = dict(KHARAJ_DYN)
     dd.update(dyn or {})
     dkey = tuple(sorted((k, dd.get(k, T1.DEFAULT.get(k))) for k in ("fs", "fmax", "M", "kc", "wc", "thread", "tune")))
-    t1, info = _geometry_cached(material, tuple(sorted(g.items())), dkey)
+    t1, info = _geometry_cached(material, tuple(sorted(g.items())), dkey, role)
     return dict(t1, profile=(t1["profile"][0].copy(), t1["profile"][1].copy())), dict(info)
 
 
@@ -252,13 +290,15 @@ def preset(name, **overrides):
         p = dict(T1.DEFAULT)
         p.update(overrides)
         return p
-    if name not in ("kharaj", "kharaj_steel"):
+    if name not in STRING_SPECS:
         raise ValueError(f"unknown preset {name!r}; choose from {NAMES}")
-    material = "bronze" if name == "kharaj" else "steel"
-    geom = {k: overrides.pop(k) for k in list(overrides) if k in GEOM_KEYS}
+    spec = STRING_SPECS[name]
+    material = spec["material"]
+    geom = dict(spec["geom"])                     # the string's own gauge, pitch and designed psi ({} for kharaj)
+    geom.update({k: overrides.pop(k) for k in list(overrides) if k in GEOM_KEYS})
     dyn = dict(KHARAJ_DYN)
     dyn.update(overrides)
-    t1, info = kharaj_geometry(material, geom, dyn)
+    t1, info = kharaj_geometry(material, geom, dyn, role=spec["role"])
     p = dict(T1.DEFAULT)
     p.update(t1)
     p.update(KHARAJ_DYN)
