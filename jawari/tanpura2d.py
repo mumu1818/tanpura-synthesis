@@ -34,12 +34,32 @@ Discretisation (all exact per-sample linear algebra, no lagged forces apart from
       friction power  dx sum_j mu_f(w_j) w_j f_y,j >= 0.
 Outputs: force exerted by the string on the bridge assembly, vertical and horizontal components
   (termination + thread + barrier normal force / friction), nut force (y, z), energy terms, diagnostics.
+
+Optional extensions, feature parity with tanpura1d.py (all OFF by default; the default behaviour is bit-identical
+to the original model; they change only the set-up -- the time loop _run is unchanged).  See MODEL_2D_PLUCK.md.
+  * profile=(x_rel, h_rel): bridge surface relative to the string's rest line (statics.profile_for_dynamics), as
+    tanpura1d (same bridge points: tanpura1d.profile_points).
+  * static_init=True: start from the EXACT static equilibrium of the discrete 2-D scheme (static_equilibrium():
+    bridge contact, thread in y and z, nut anisotropy, tension modulation; Newton on the convex potential).
+    The older init_static / static_state() (h0 > 0 only, alpha = 1, z-thread reaction neglected) is kept unchanged.
+  * T=<N>: tension override;  tune='speaking': T such that the lowest linear eigenfrequency of the discrete scheme
+    with the thread spring (contact off) equals f1, computed by tanpura1d.tune_tension.  It tunes the AXIS-1 series
+    of the nut coupling (= y when theta_nut = 0 or pol2 off); axis 2 is detune_cents sharper.  The two series are
+    exactly decoupled (so the tuning is exact) when the thread is isotropic (kcz = kc, rcz = rc) or theta_nut = 0.
+    tune_ref='mean' instead tunes axis 1 to f1 2^(-detune/2400), i.e. the two series straddle f1.
+  * pluck='finger' (xp, wp, pluck_pull, pluck_release, pluck_disp): the tanpura1d finger-pad pluck, applied along
+    the direction pluck_deg from the bridge normal y towards +z (90 = parallel to the soundboard).  pluck_disp is
+    the static pad displacement ALONG the pluck direction (discrete scheme, thread springs on, contact and TM off).
+  * loss='valette' (eta_air, rho_air, delta_ve, Qte_inv, Yb, mb, fb): tanpura1d.loss_sigma, the same sigma_i for
+    both polarisations (evaluated at the axis-1 frequencies; common damping keeps the rotated update symmetric).
 """
 from __future__ import annotations
 
 import time
 import numpy as np
 from numba import njit
+
+import tanpura1d as T1
 
 DEFAULT = dict(
     # string (DAFx-16 Table 1, C3 steel string)
@@ -61,6 +81,20 @@ DEFAULT = dict(
     tol=1e-18, maxit=60, ftol=1e-13, fmaxit=80, guess=True,
     rec_every=64,
     dur=3.0,
+    # optional extensions (None/False = original behaviour, bit-identical); same meaning as in tanpura1d
+    profile=None,        # (x_rel, h_rel) arrays: bridge surface relative to the rest line (+ = pressed)
+    static_init=False,   # start from the exact static equilibrium of the discrete scheme (static_equilibrium)
+    T=None,              # tension override [N]
+    tune=None,           # None | 'speaking'
+    tune_ref="axis1",    # 'axis1': nut axis-1 series speaks at f1 | 'mean': the two series straddle f1
+    pluck=None,          # None | 'finger'  (direction: pluck_deg)
+    xp=None,             # pluck position from the bridge-side termination [m]; None -> L/3
+    wp=0.012,            # pad width [m]
+    pluck_pull=0.040,    # sin^2 pull [s]
+    pluck_release=0.002, # cos^2 release [s]
+    pluck_disp=None,     # target static pad displacement along the pluck direction [m] (overrides Fe_amp)
+    loss=None,           # None | 'valette'
+    eta_air=1.8e-5, rho_air=1.2, delta_ve=4.5e-3, Qte_inv=2.03e-4, Yb=0.0, mb=0.0, fb=0.0,
 )
 
 
@@ -85,9 +119,13 @@ def build(p):
     EA = p["E"] * p["A"] * p["EA_scale"]
     f1 = p["f1"]
     T = mu * (2 * L * f1) ** 2 - EI * (np.pi / L) ** 2
+    if p.get("T") is not None:
+        T = float(p["T"])
     fs = p["fs"]; dt = 1.0 / fs
     ii = np.arange(1, 5000)
     beta = ii * np.pi / L
+    if p.get("tune"):
+        T = tune_tension(p, T, mu, EI, L, beta)
     om = np.sqrt((T * beta ** 2 + EI * beta ** 4) / mu)
     M = int(p["M"]) if p.get("M") else int(np.sum(om / (2 * np.pi) < p["fmax"]))
     ii, beta, om = ii[:M], beta[:M], om[:M]
@@ -98,6 +136,8 @@ def build(p):
         raise ValueError("highest mode above Nyquist")
     if p["lossless"]:
         sig = np.zeros(M)
+    elif p.get("loss") is not None:
+        sig = T1.loss_sigma(p, T, mu, EI, L, beta, om)
     else:
         eta = (T * (p["etaF"] + p["etaA"] / om) + EI * p["etaB"] * beta ** 2) / (T + EI * beta ** 2)
         sig = om * eta / 2
@@ -122,7 +162,11 @@ def build(p):
     Kyz = cs * sn * (ax_k[0] - ax_k[1])
     if not use_z:
         Ayz = np.zeros(M); Azz = np.zeros(M); Kyz = np.zeros(M); Kzz = np.zeros(M)
-    ge = project(L, beta, p["xe"], p["we"])
+    if p.get("pluck") is not None:
+        xp, wp = T1.pluck_window(p)
+        ge = project(L, beta, xp, wp)
+    else:
+        ge = project(L, beta, p["xe"], p["we"])
     if p["thread"]:
         gc = project(L, beta, p["xc"], p["wc"])
         kc, rc = p["kc"], p["rc"]
@@ -135,7 +179,14 @@ def build(p):
     kapy, lamy = 0.5 * kc + rc / (2 * dt), 0.5 * kc - rc / (2 * dt)
     kapz, lamz = 0.5 * kcz + rcz / (2 * dt), 0.5 * kcz - rcz / (2 * dt)
     xb = p["xb"]
-    if p["bridge"]:
+    if p["bridge"] and p.get("profile") is not None:
+        xj, dxb, hj = T1.profile_points(p)
+        Nb = xj.size
+        Phi = np.ascontiguousarray(np.sin(xj[:, None] * beta[None, :]))
+        Q0 = np.ascontiguousarray(dxb * (Phi * c[None, :]) @ Phi.T)
+        Q0 = 0.5 * (Q0 + Q0.T)
+        v0 = Phi @ (c * gc)
+    elif p["bridge"]:
         x0 = p["br_x0"] if p["br_x0"] is not None else (max(p["xc"], xb - 0.006) if p["thread"] else xb - 0.006)
         x1 = p["br_x1"] if p["br_x1"] is not None else xb + 0.006
         Nb = int(round((x1 - x0) / p["dxb"])) + 1
@@ -161,12 +212,148 @@ def build(p):
                 cphi=np.cos(ph), sphi=np.sin(ph), use_z=use_z, k_ax1=ax_k[0], k_ax2=ax_k[1])
 
 
-def excitation(p):
+def tune_tension(p, T0, mu, EI, L, beta):
+    """tune='speaking': tension for which the lowest linear eigenfrequency of the DISCRETE scheme with the thread
+    spring (contact off) of the nut's axis-1 series equals f1 (tune_ref='axis1'), or f1 2^(-detune/2400)
+    (tune_ref='mean': axis 1 and axis 2 = axis 1 + detune_cents straddle f1).  tanpura1d.tune_tension does the work,
+    so with pol2 off the tension is identical to tanpura1d's.  Exact for the axis-1 series when the thread is
+    isotropic (kcz = kc, rcz = rc) or theta_nut = 0: the linear system then separates into the two principal axes."""
+    ref = p.get("tune_ref", "axis1")
+    if ref == "axis1" or not p["pol2"]:
+        return T1.tune_tension(p, T0, mu, EI, L, beta)
+    if ref == "mean":
+        return T1.tune_tension(dict(p, f1=p["f1"] * 2.0 ** (-p["detune_cents"] / 2400.0)), T0, mu, EI, L, beta)
+    raise ValueError(f"unknown tune_ref {ref!r}")
+
+
+def stiffness_matrix(s):
+    """Static stiffness of the discrete linear scheme (contact and TM off), unknowns x = [q (y), p (z)]:
+    per mode m [[K*yy, K*yz], [K*yz, K*zz]] (the scheme's own omega*^2, rotated by theta_nut) plus the thread
+    springs k_c g_c g_c^T in y and k_cz g_c g_c^T in z.  Size M (pol2 off) or 2M."""
+    M = s["M"]; m = s["m"]; gc = s["gc"]
+    n = 2 * M if s["use_z"] else M
+    K = np.zeros((n, n))
+    iy = np.arange(M)
+    K[iy, iy] = m * s["Kyy"]
+    K[:M, :M] += s["kc"] * np.outer(gc, gc)
+    if s["use_z"]:
+        iz = iy + M
+        K[iy, iz] = m * s["Kyz"]; K[iz, iy] = m * s["Kyz"]
+        K[iz, iz] = m * s["Kzz"]
+        K[M:, M:] += s["kcz"] * np.outer(gc, gc)
+    return K
+
+
+def static_compliance(s):
+    """Static pad displacement ALONG the pluck direction e = (cos phi, sin phi) per unit excitation force:
+    (g_e x e)^T K^-1 (g_e x e) for the discrete scheme with the thread springs (contact off, TM off).
+    pol2 off: exactly tanpura1d.static_compliance (Sherman-Morrison on diag(m omega*^2) + k_c g_c g_c^T)."""
+    ge, gc, kc = s["ge"], s["gc"], s["kc"]
+    if not s["use_z"]:
+        D = s["m"] * s["Kyy"]
+        a = np.sum(ge * ge / D)
+        if kc == 0.0:
+            return float(a)
+        b = np.sum(ge * gc / D)
+        g = np.sum(gc * gc / D)
+        return float(a - kc * b * b / (1.0 + kc * g))
+    F = np.concatenate([s["cphi"] * ge, s["sphi"] * ge])
+    return float(F @ np.linalg.solve(stiffness_matrix(s), F))
+
+
+def excitation_amp(p, s=None):
+    """Force amplitude: Fe_amp, or pluck_disp / static_compliance if pluck_disp is set."""
+    if p.get("pluck_disp") is None:
+        return p["Fe_amp"]
+    if s is None:
+        s = build(p)
+    return float(p["pluck_disp"]) / static_compliance(s)
+
+
+def excitation(p, s=None):
+    """Excitation force history F_e(t), applied through g_e along (cos phi, sin phi): sin^2 rise, cos^2 fall.
+    Whole-string pulse (default): Fe_rise / Fe_fall, amplitude Fe_amp.  Finger pluck (pluck='finger'): pluck_pull /
+    pluck_release, amplitude from pluck_disp if set (needs the set-up s; built if not given)."""
     fs = p["fs"]
-    tr = np.arange(int(round(p["Fe_rise"] * fs))) / fs
-    tf = np.arange(int(round(p["Fe_fall"] * fs))) / fs
-    return np.concatenate([p["Fe_amp"] * np.sin(0.5 * np.pi * tr / p["Fe_rise"]) ** 2,
-                           p["Fe_amp"] * np.cos(0.5 * np.pi * tf / p["Fe_fall"]) ** 2, [0.0]])
+    if p.get("pluck") is not None:
+        rise, fall = p["pluck_pull"], p["pluck_release"]
+    else:
+        rise, fall = p["Fe_rise"], p["Fe_fall"]
+    amp = excitation_amp(p, s)
+    tr = np.arange(int(round(rise * fs))) / fs
+    tf = np.arange(int(round(fall * fs))) / fs
+    return np.concatenate([amp * np.sin(0.5 * np.pi * tr / rise) ** 2,
+                           amp * np.cos(0.5 * np.pi * tf / fall) ** 2, [0.0]])
+
+
+def static_equilibrium(p, s, maxit=200):
+    """EXACT static equilibrium of the DISCRETE 2-D scheme: the fixed point x^{n+1} = x^n = x^{n-1} of _run with
+    bridge contact, thread springs in y and z, the rotated nut stiffness and Kirchhoff-Carrier tension modulation.
+
+    It is the minimiser of the convex potential
+        V(x) = 1/2 x^T K x + (EA/8L) P(x)^2 + dxb k_b/(alpha+1) sum_j [h_j - Phi_j q]_+^(alpha+1),
+        P = (L/2) sum beta_i^2 (q_i^2 + p_i^2),   K = stiffness_matrix(s)  (the scheme's omega*^2, not omega^2),
+    because at rest the trapezoidal thread force is -k_c u, the discrete-gradient contact force is k_b eta^alpha,
+    the linearly implicit TM force is -(EA/4) P beta_i^2 x_i, friction vanishes (no slip) and the update
+    m [delta_tt x + 2 sigma* delta_t. x + K*_i x] = F reduces to m K*_i x_i = F_i.  Newton with backtracking
+    (generalises tanpura1d.static_state; identical problem when pol2 and tm are off).  A vertical preload makes a
+    small z deflection when the nut is anisotropic (theta_nut, detune_cents).  Returns (q, p, info)."""
+    M = s["M"]
+    use_z = bool(s["use_z"])
+    q = np.zeros(M); pz = np.zeros(M)
+    info = dict(static_force=0.0, thread_force=0.0, thread_force_z=0.0, n_active=0, max_pen=0.0, iters=0,
+                residual=0.0, max_z=0.0, kind="exact")
+    if not p["bridge"] or np.max(s["hj"]) <= 0.0:
+        return q, pz, info
+    K = stiffness_matrix(s)
+    n = K.shape[0]
+    gc = s["gc"]
+    hj, dxb = s["hj"], s["dxb"]
+    PhiF = np.zeros((hj.size, n)); PhiF[:, :M] = s["Phi"]
+    kb, al = float(p["kb"]), float(p["alpha"])
+    ktm = s["EA"] / 8.0 if p["tm"] else 0.0
+    L = s["L"]
+    B2 = np.concatenate([s["beta"] ** 2] * (2 if use_z else 1))
+
+    def P_of(x):
+        return 0.5 * L * np.sum(B2 * x * x)
+
+    def energy(x):
+        eta = np.maximum(hj - PhiF @ x, 0.0)
+        return 0.5 * x @ (K @ x) + ktm / L * P_of(x) ** 2 + dxb * kb / (al + 1) * np.sum(eta ** (al + 1))
+
+    def grad(x):
+        eta = hj - PhiF @ x
+        act = eta > 0
+        g = K @ x + 2.0 * ktm * P_of(x) * B2 * x - dxb * PhiF[act].T @ (kb * eta[act] ** al)
+        return g, eta, act
+
+    x = np.zeros(n)
+    it = 0
+    for it in range(1, maxit + 1):
+        g, eta, act = grad(x)
+        Hs = K + 2.0 * ktm * (P_of(x) * np.diag(B2) + L * np.outer(B2 * x, B2 * x))
+        if act.any():
+            wgt = dxb * kb * al * eta[act] ** (al - 1)
+            Hs += (PhiF[act].T * wgt) @ PhiF[act]
+        dx = np.linalg.solve(Hs, -g)
+        E0 = energy(x)
+        tstep = 1.0
+        while energy(x + tstep * dx) > E0 + 1e-4 * tstep * (g @ dx) + 1e-14 * abs(E0) and tstep > 1e-12:
+            tstep *= 0.5
+        x = x + tstep * dx
+        if np.max(np.abs(tstep * dx)) < 1e-18 + 1e-15 * np.max(np.abs(x)):
+            break
+    g, eta, act = grad(x)
+    q = x[:M].copy()
+    if use_z:
+        pz = x[M:].copy()
+    fa = kb * np.maximum(eta, 0.0) ** al
+    info = dict(static_force=float(dxb * fa.sum()), thread_force=float(-s["kc"] * (gc @ q)),
+                thread_force_z=float(-s["kcz"] * (gc @ pz)), n_active=int(act.sum()), max_pen=float(np.max(eta)),
+                iters=it, residual=float(np.max(np.abs(g))), max_z=float(np.max(np.abs(pz))) if use_z else 0.0,
+                x_active=s["xj"][act].copy(), kind="exact")
+    return q, pz, info
 
 
 def static_state(p, s):
@@ -688,11 +875,14 @@ def simulate(over=None, energy=False):
         p.update(over)
     s = build(p)
     N = int(round(p["dur"] * p["fs"]))
-    Fe = excitation(p)
+    Fe = excitation(p, s)
     q_init = np.zeros(s["M"]); p_init = np.zeros(s["M"]); stat_info = None
-    init_static = p["init_static"] if p["init_static"] is not None else (p["bridge"] and p["h0"] > 0)
-    if init_static and p["bridge"]:
-        q_init, p_init, stat_info = static_state(p, s)
+    if p.get("static_init"):
+        q_init, p_init, stat_info = static_equilibrium(p, s)
+    else:   # original behaviour (unchanged): approximate preload state only for the parabola with h0 > 0
+        init_static = p["init_static"] if p["init_static"] is not None else (p["bridge"] and p["h0"] > 0)
+        if init_static and p["bridge"]:
+            q_init, p_init, stat_info = static_state(p, s)
     use_fric = bool(p["friction"]) and s["use_z"] and bool(p["bridge"])
     ktm = s["EA"] / 8.0 if p["tm"] else 0.0
     t0 = time.time()
@@ -722,4 +912,7 @@ def simulate(over=None, energy=False):
 
 
 def thread_lift(p):
+    """height of the string above the bridge surface at the thread position (the 'thread height')."""
+    if p.get("profile") is not None:
+        return T1.thread_lift(p)
     return -(p["h0"] - p["curv"] * (p["xc"] - p["xb"]) ** 2)
