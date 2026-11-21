@@ -158,6 +158,44 @@ From [`jawari/render1d.py`](../jawari/render1d.py); bridge force, 10 s.
 - the statics agree with the independent solver;
 - pitch, penetration (≈ 0.23 µm), the bilateral-thread validity and click-free onsets were all verified.
 
+### 3.6 Matching the user's real plucks (2-D, sideways finger pluck)
+
+[`jawari/FIT2D.md`](../jawari/FIT2D.md), [`jawari/render_match.py`](../jawari/render_match.py), [`jawari/MODEL_2D_PLUCK.md`](../jawari/MODEL_2D_PLUCK.md). The references are single plucks of the user's own male C# tanpura and the iTanpura app, read in place from the user's app repository and never committed.
+
+**What every real pluck does.** It **blooms**: the level starts 14–18 dB below its peak and reaches the peak at 0.7–1.3 s, as energy moves from partials 1–3 into partials 4–10. The partials are harmonic at A440 (kharaj 69.33 Hz), because the jawari locks them. The 1-D model cannot do this: it is loudest at the pluck.
+
+**Model.** The finger strokes the string almost parallel to the soundboard (88–90°). That motion cannot touch the bridge, so the jawari builds up as the energy exchanges into the bridge-normal polarisation.
+
+**Fit result.** Per string: recording vs fitted 2-D model (rise / time of peak), with the feature distance D for the 2-D fit against the old 1-D model.
+
+| String | Recording | 2-D fit | D, 2-D vs 1-D |
+|---|---|---|---|
+| kharaj | 13.9 dB / 1.01 s | 13.8 dB / 1.03 s | 49 vs 244 |
+| Pa | 17.7 dB / 1.15 s | 17.5 dB / 1.21 s | 58 vs 343 |
+| Sa | 17.3 dB / 0.71 s | 18.7 dB / 0.85 s | 91 vs 394 |
+
+The independent judge confirms the fit:
+- Every number reproduces bit for bit.
+- Its own heterodyne measure puts the level curve within 2.1 / 3.9 / 3.8 dB RMS of the recordings over 0.1–3.5 s, against 5.3 / 10.4 / 12.7 dB for the 1-D model.
+- Default model behaviour is unchanged: 424 arrays are bitwise equal to before.
+
+**What is still wrong**, ranked:
+1. **Partials 1–3.** The model string keeps 91–93 % of its energy there; a real string drains it. The fit compensates with a 250–400 Hz high-pass at the edge of plausibility.
+   - Most of the dry level rise is the linear polarisation beat. The jawari adds the transfer into partials 4–10 and an earlier peak.
+2. **Upper partials.** Partials 16–31 are 11–14 dB too weak on Pa and Sa, and the kharaj formant sits on partials 8–15 instead of 4–7.
+3. **Attack.** No early brightness and no finger click: the burst above 4 kHz is −14 dB in the model, −1 dB in the recordings.
+4. **Second bloom.** The periodic polarisation exchange makes a second bloom at about 3.5 s, and the decay from 1.5–4 s is too slow on Pa.
+5. **Coupling.** The fitted coupling parameters are specific to one recording, and the held-out iTanpura "Alt" plucks bloom less.
+
+**Next.** Physics in place of the output filter:
+- a bridge contact that also depends on sideways motion (transverse curvature or a groove);
+- polarisation-dependent bridge damping or body coupling;
+- a small vertical stroke component and a release click;
+- statics geometry fitted to the formant;
+- refit with shared parameters and cross-validate.
+
+Unfaded 10 s+ recordings of the user's instrument would pin down the coupling and the late decay.
+
 ## 4. New finding: thread sensitivity is a micrometre-geometry effect
 
 Published work says the 1-D model *"fails to replicate the jvari's strong dependence on the thread placement"* (Bridges & van Walstijn, VT-2015) and proposes two polarisations plus friction. We tested this.

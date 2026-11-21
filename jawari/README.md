@@ -126,4 +126,9 @@ These are the next steps; see [`../docs/EVALUATION.md`](../docs/EVALUATION.md) �
 - **Pitch.** Bridge contact makes the sounding pitch +4 to +7 cents sharp; there is no jawari-on tuning yet.
 - **Other strings.** There is only one string: no Pa/Sa/Sa and no sympathetic coupling.
 - **The drone is simplified.** Every pluck is identical, and the finger does not damp the string on re-pluck.
-- **2-D.** The 2-D model does not yet use the statics geometry, and its nut-coupling strength is unmeasured.
+- **Matching real plucks (2-D, sideways pluck; see `FIT2D.md`, `render_match.py`).** The bloom now matches the user's recordings: level curve within 2–4 dB over 0.1–3.5 s. But:
+  - the string keeps too much energy in partials 1–3, and the fit hides this with a strong 250–400 Hz high-pass;
+  - the attack lacks brightness and the finger click;
+  - the formant sits on partials 8–15 instead of 4–7;
+  - the polarisation exchange makes a second bloom at about 3.5 s;
+  - the fitted coupling settings are specific to one recording.
