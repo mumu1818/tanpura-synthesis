@@ -1,0 +1,235 @@
+{
+ "note": "Best fitted parameters of round 2 (fit2d.py) and round 3 (fit3.py), so the fits can be re-rendered without the git-ignored fit histories and caches. No audio, no recordings. See FIT3.md and README.md (Running on another machine).",
+ "round3": {
+  "kharaj": {
+   "x": {
+    "pluck_deg": 89.5,
+    "pluck_release": 0.002154923618297613,
+    "pluck_disp": 0.0027,
+    "xp_frac": 0.3333333333333333,
+    "theta_nut": 44.0,
+    "detune_cents": 3.706173712210199,
+    "kcz_x": 2.5599814183292717,
+    "groove_kappa": 30.0,
+    "groove_z0": 0.0009000000000000001,
+    "Yb_y": 0.0,
+    "Ybz_x": 1.0,
+    "c": 3.0,
+    "d_t": 0.0002,
+    "target_gap": 0.0,
+    "delta_ve_x": 0.5015760690660555,
+    "drain_a0": 65.0,
+    "drain_t1": 120.0,
+    "drain_modes": "gain"
+   },
+   "f1_fit": 69.007,
+   "f1_final": 69.075,
+   "f0_final": 69.32902081067763,
+   "design_f1": true,
+   "J_final": 204.91971973998386,
+   "D3": {
+    "own_kharaj": 186.71724205294254,
+    "itanpura_kharaj": 241.25209077625118,
+    "alt_kharaj": 316.3911129937736
+   },
+   "chain": {
+    "own_kharaj": {
+     "a0": 55.0,
+     "t1": 100.0,
+     "gz": 0.05,
+     "hp_hz": 150.0,
+     "hp_order": 1
+    },
+    "itanpura_kharaj": {
+     "a0": 55.0,
+     "t1": 100.0,
+     "gz": 0.0,
+     "hp_hz": 150.0,
+     "hp_order": 2
+    },
+    "alt_kharaj": {
+     "a0": 55.0,
+     "t1": 100.0,
+     "gz": 0.0,
+     "hp_hz": 150.0,
+     "hp_order": 2
+    }
+   }
+  },
+  "pa": {
+   "x": {
+    "pluck_deg": 88.75,
+    "pluck_release": 0.0028228733340153363,
+    "pluck_disp": 0.0017000000000000001,
+    "xp_frac": 0.3333333333333333,
+    "theta_nut": 35.0,
+    "detune_cents": 2.3631606937057947,
+    "kcz_x": 1.5683121854901687,
+    "groove_kappa": 30.0,
+    "groove_z0": 0.00014000000000000001,
+    "Yb_y": 0.045,
+    "Ybz_x": 1.0,
+    "c": 3.0,
+    "d_t": 0.0003005188731913479,
+    "target_gap": 0.0,
+    "delta_ve_x": 1.0,
+    "drain_a0": 65.0,
+    "drain_t1": 120.0,
+    "drain_modes": "gain"
+   },
+   "f1_fit": 103.722,
+   "f1_final": 103.783,
+   "f0_final": 103.96181113079011,
+   "design_f1": true,
+   "J_final": 169.86323024922402,
+   "D3": {
+    "own_pa": 166.88901521167827,
+    "itanpura_pa": 175.79112453334238,
+    "alt_pa": 360.09817596597196
+   },
+   "chain": {
+    "own_pa": {
+     "a0": 65.0,
+     "t1": 150.0,
+     "gz": 0.05,
+     "hp_hz": 150.0,
+     "hp_order": 1
+    },
+    "itanpura_pa": {
+     "a0": 65.0,
+     "t1": 150.0,
+     "gz": 0.1,
+     "hp_hz": 150.0,
+     "hp_order": 2
+    },
+    "alt_pa": {
+     "a0": 65.0,
+     "t1": 150.0,
+     "gz": 0.1,
+     "hp_hz": 100.0,
+     "hp_order": 2
+    }
+   }
+  },
+  "sa": {
+   "x": {
+    "pluck_deg": 90.0,
+    "pluck_release": 0.0018734005942224233,
+    "pluck_disp": 0.00175,
+    "xp_frac": 0.3333333333333333,
+    "theta_nut": 32.5,
+    "detune_cents": 3.0041660239464334,
+    "kcz_x": 1.9347923344020317,
+    "groove_kappa": 0.0,
+    "groove_z0": 0.0,
+    "Yb_y": 0.005,
+    "Ybz_x": 1.0,
+    "c": 3.0,
+    "d_t": 0.0002,
+    "target_gap": 1e-06,
+    "delta_ve_x": 0.5015760690660555,
+    "drain_a0": 65.0,
+    "drain_t1": 120.0,
+    "drain_modes": "gain"
+   },
+   "f1_fit": 138.222,
+   "f1_final": 138.264,
+   "f0_final": 138.5399033841878,
+   "design_f1": true,
+   "J_final": 274.91646393644737,
+   "D3": {
+    "own_sa": 269.0749750446731,
+    "itanpura_sa": 285.1897719489226,
+    "alt_sa": 305.09663063768176
+   },
+   "chain": {
+    "own_sa": {
+     "a0": 55.0,
+     "t1": 100.0,
+     "gz": 0.0,
+     "hp_hz": 150.0,
+     "hp_order": 1
+    },
+    "itanpura_sa": {
+     "a0": 55.0,
+     "t1": 100.0,
+     "gz": 0.0,
+     "hp_hz": 150.0,
+     "hp_order": 1
+    },
+    "alt_sa": {
+     "a0": 80.0,
+     "t1": 100.0,
+     "gz": 0.1,
+     "hp_hz": 0.0,
+     "hp_order": 0
+    }
+   }
+  }
+ },
+ "round2": {
+  "kharaj": {
+   "x": {
+    "pluck_deg": 90.0,
+    "theta_nut": 45.0,
+    "detune_cents": 7.0,
+    "target_gap": 0.0,
+    "pluck_disp": 0.0027,
+    "delta_ve_x": 1.0,
+    "Yb_x": 1.0,
+    "kcz_x": 2.5,
+    "xp_frac": 0.3333333333333333
+   },
+   "f1": 69.127,
+   "chain_own": {
+    "gz": 0.1,
+    "hp_hz": 400.0,
+    "hp_order": 2,
+    "mode_gain_db": -6.0
+   },
+   "key": "13e81d618d1a19f0"
+  },
+  "pa": {
+   "x": {
+    "pluck_deg": 88.0,
+    "theta_nut": 15.0,
+    "detune_cents": 3.5,
+    "target_gap": 0.0,
+    "pluck_disp": 0.002,
+    "delta_ve_x": 1.0,
+    "Yb_x": 1.0,
+    "kcz_x": 1.0,
+    "xp_frac": 0.3333333333333333
+   },
+   "f1": 103.663,
+   "chain_own": {
+    "gz": 0.05,
+    "hp_hz": 400.0,
+    "hp_order": 1,
+    "mode_gain_db": -6.0
+   },
+   "key": "efc8015e5cbf3160"
+  },
+  "sa": {
+   "x": {
+    "pluck_deg": 89.0,
+    "theta_nut": 30.0,
+    "detune_cents": 3.3000000000000003,
+    "target_gap": 1e-06,
+    "pluck_disp": 0.00205,
+    "delta_ve_x": 1.0,
+    "Yb_x": 1.0,
+    "kcz_x": 2.0300000000000002,
+    "xp_frac": 0.3333333333333333
+   },
+   "f1": 138.142,
+   "chain_own": {
+    "gz": 0.02,
+    "hp_hz": 249.0,
+    "hp_order": 3,
+    "mode_gain_db": -6.0
+   },
+   "key": "c785be2238be83c1"
+  }
+ }
+}

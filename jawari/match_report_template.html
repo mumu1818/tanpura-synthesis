@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanpura model vs real plucks: how the sound evolves</title>
+<style>
+.mr {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --ctx: #898781;
+  --div-lo: #2a78d6; --div-mid: #f0efec; --div-hi: #e34948;
+  --good: #006300; --bad: #d03b3b;
+  --seq: #cde2fb,#b7d3f6,#9ec5f4,#86b6ef,#6da7ec,#5598e7,#3987e5,#2a78d6,#256abf,#1c5cab,#184f95,#104281,#0d366b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .mr {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --ctx: #898781;
+    --div-lo: #3987e5; --div-mid: #383835; --div-hi: #e66767;
+    --good: #0ca30c; --bad: #e66767;
+    --seq: #0d366b,#104281,#184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4,#b7d3f6,#cde2fb;
+  }
+}
+:root[data-theme="dark"] .mr {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --ctx: #898781;
+  --div-lo: #3987e5; --div-mid: #383835; --div-hi: #e66767;
+  --good: #0ca30c; --bad: #e66767;
+  --seq: #0d366b,#104281,#184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#5598e7,#6da7ec,#86b6ef,#9ec5f4,#b7d3f6,#cde2fb;
+}
+body { margin: 0; }
+.mr { background: var(--page); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; }
+.mr * { box-sizing: border-box; }
+.mr .wrap { max-width: 1140px; margin: 0 auto; padding: 24px 16px 64px; }
+.mr h1 { font-size: 26px; line-height: 1.25; margin: 0 0 6px; font-weight: 650; }
+.mr h2 { font-size: 20px; margin: 40px 0 6px; font-weight: 650; }
+.mr h3 { font-size: 15px; margin: 0 0 2px; font-weight: 600; }
+.mr p { margin: 6px 0 10px; max-width: 78ch; }
+.mr .sub { color: var(--ink2); margin: 0 0 18px; max-width: 86ch; }
+.mr .muted { color: var(--muted); }
+.mr .small { font-size: 13px; }
+.mr .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 14px 10px; margin: 12px 0; }
+.mr .card .cap { color: var(--ink2); font-size: 13px; margin: 0 0 8px; max-width: 90ch; }
+.mr .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.mr .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mr .grid5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 900px) { .mr .grid3, .mr .grid5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .mr .grid3, .mr .grid2, .mr .grid5 { grid-template-columns: minmax(0, 1fr); } }
+.mr .grid3 > .card, .mr .grid2 > .card, .mr .grid5 > .card { margin: 0; }
+.mr .findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+@media (max-width: 760px) { .mr .findings { grid-template-columns: minmax(0, 1fr); } }
+.mr .finding { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; }
+.mr .finding p { margin: 4px 0 0; font-size: 14px; color: var(--ink2); }
+.mr .bar { position: sticky; top: 0; z-index: 5; background: var(--page); padding: 10px 0; border-bottom: 1px solid var(--grid);
+           display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.mr .seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; }
+.mr .seg button { font: inherit; font-size: 14px; background: transparent; color: var(--ink); border: 0; padding: 6px 12px; cursor: pointer; }
+.mr .seg button + button { border-left: 1px solid var(--axis); }
+.mr .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.mr .seg button:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
+.mr .lab { font-size: 13px; color: var(--ink2); }
+.mr .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--ink2); margin: 2px 0 4px; }
+.mr .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.mr .key { display: inline-block; width: 16px; height: 2px; border-radius: 1px; }
+.mr .chart { position: relative; width: 100%; }
+.mr .chart svg { display: block; overflow: visible; }
+.mr .chart canvas { display: block; position: absolute; }
+.mr .tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--ring);
+           box-shadow: 0 2px 10px rgba(0,0,0,0.12); border-radius: 8px; padding: 7px 9px; font-size: 12.5px; line-height: 1.35;
+           white-space: nowrap; z-index: 4; display: none; }
+.mr .tip .t { color: var(--muted); margin-bottom: 3px; }
+.mr .tip .row { display: flex; align-items: center; gap: 6px; }
+.mr .tip .row b { font-weight: 650; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.mr .tip .row i { font-style: normal; color: var(--ink2); }
+.mr details { margin-top: 6px; }
+.mr summary { cursor: pointer; color: var(--ink2); font-size: 13px; }
+.mr table { border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+.mr th, .mr td { padding: 4px 8px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; vertical-align: top; }
+.mr th:first-child, .mr td:first-child { text-align: left; }
+.mr th { color: var(--ink2); font-weight: 600; }
+.mr .tablewrap { overflow-x: auto; max-width: 100%; }
+.mr .yes, .mr .no { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.mr .yes::before { content: "\2713"; color: var(--good); font-weight: 700; }
+.mr .no::before { content: "\2715"; color: var(--bad); font-weight: 700; }
+.mr .scale { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--ink2); margin-top: 4px; }
+.mr .scale > span { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.mr .scale > span.note { white-space: normal; display: inline; }
+.mr .scale canvas { position: static; height: 8px; width: 140px; border-radius: 2px; }
+.mr code, .mr pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.mr pre { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+.mr ol li, .mr ul li { margin: 4px 0; max-width: 84ch; }
+.mr .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--axis); color: var(--ink2); margin-left: 6px; }
+.mr .meter { display: inline-block; height: 6px; border-radius: 3px; background: var(--muted); vertical-align: middle; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="mr" id="mr">
+<div class="wrap">
+  <header>
+    <h1>Tanpura model vs real plucks: how the sound evolves</h1>
+    <p class="sub" id="subtitle"></p>
+  </header>
+
+  <section id="summary" aria-labelledby="h-summary">
+    <h2 id="h-summary">In short</h2>
+    <p>You heard the round-3 Sa as close and the kharaj and Pa as not close. This page looks for the differences that follow that verdict: small on Sa, large on the other two.</p>
+    <div class="findings" id="findings"></div>
+    <div class="card" id="card-table">
+      <h3>Model minus your recording, per string</h3>
+      <p class="cap">Round-3 model. A row is marked when its difference is smallest on Sa, the string you hear as close. With three strings that also happens by chance one time in three, so treat a mark as a lead, not proof.</p>
+      <div class="tablewrap"><table id="difftable"></table></div>
+    </div>
+  </section>
+
+  <div class="bar" role="group" aria-label="Choose what the charts below show">
+    <span class="lab">String</span>
+    <span class="seg" id="sel-string"></span>
+    <span class="lab">Compare your recording with</span>
+    <span class="seg" id="sel-cmp"></span>
+  </div>
+
+  <section id="evolution" aria-labelledby="h-evo">
+    <h2 id="h-evo">Harmonic content over time</h2>
+    <p>Each row is one harmonic (partial 1 is the fundamental, at the bottom), each column 20 ms. The colour is the level relative to that signal's loudest partial. The third map is the comparison minus your recording, after both are scaled to the same total energy: red means the comparison is louder there, blue quieter.</p>
+    <div class="grid3">
+      <div class="card"><h3 id="hm-title-a"></h3><div class="chart" id="hm-a"></div></div>
+      <div class="card"><h3 id="hm-title-b"></h3><div class="chart" id="hm-b"></div></div>
+      <div class="card"><h3 id="hm-title-c"></h3><div class="chart" id="hm-c"></div></div>
+    </div>
+    <div class="scale" id="hm-scales"></div>
+    <details><summary>Table: partial levels at key times</summary><div class="tablewrap" id="hm-table"></div></details>
+  </section>
+
+  <section id="swell" aria-labelledby="h-swell">
+    <h2 id="h-swell">The swell, the pitch and the balance over time</h2>
+    <div class="grid2">
+      <div class="card" id="card-level"><h3>Level over time</h3><p class="cap">Total harmonic level, each relative to its own peak.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-pitch"><h3>Pitch after the pluck</h3><p class="cap">Cents relative to each signal's steady pitch, first 0.8 s (short-window period tracking).</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-formant"><h3>Jawari formant</h3><p class="cap">Centre of the energy in partials 4 and up, as a partial number. Partials 1-3 hold most of the energy, so they are left out to show where the buzz sits.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-pitch2"><h3>Pitch over the whole note</h3><p class="cap">From the partial tracks (10 ms steps). The first 0.1 s is unreliable here: the window straddles the pluck.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+    </div>
+    <div class="card" id="card-bands"><h3>Share of the sound in each group of partials</h3><p class="cap">dB relative to the total harmonic energy at that moment.</p><div class="legend"></div>
+      <div class="grid5" id="bands"></div>
+      <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+  </section>
+
+  <section id="partials" aria-labelledby="h-partials">
+    <h2 id="h-partials">Each partial</h2>
+    <div class="grid3">
+      <div class="card" id="card-tpeak"><h3>When each partial peaks</h3><p class="cap">Time of each partial's maximum (seconds).</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-peak"><h3>How loud each partial gets</h3><p class="cap">Peak level re the loudest partial (dB).</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-decay"><h3>How fast each partial dies away</h3><p class="cap">Decay rate after its peak (dB per second; more negative is faster).</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+    </div>
+  </section>
+
+  <section id="attack" aria-labelledby="h-attack">
+    <h2 id="h-attack">The attack: first 300 ms</h2>
+    <p>Hearing-scale (ERB) bands from 80 Hz to 12 kHz, 11.6 ms window, 2 ms steps, each relative to its own maximum.</p>
+    <div class="grid3">
+      <div class="card"><h3>Your recording</h3><div class="chart" id="at-a"></div></div>
+      <div class="card"><h3 id="at-title-b">Model</h3><div class="chart" id="at-b"></div></div>
+      <div class="card" id="card-contrast"><h3>Brightness of the attack</h3><p class="cap">Spectrum of the first 40 ms minus the spectrum at 0.5-1.5 s (dB): above 0, that band is stronger in the attack.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+    </div>
+    <div class="scale" id="at-scale"></div>
+  </section>
+
+  <section id="split" aria-labelledby="h-split">
+    <h2 id="h-split">What kind of mismatch is it?</h2>
+    <p>The level difference of every partial in every frame (dB, clipped at 30) is split into three parts that add up in power. A <b>smooth fixed tilt</b> is what an EQ, a microphone or a different body could also cause. A <b>fixed per-partial colour</b> is a pattern over the partials that does not change in time, such as the pluck position or a body mode. <b>Changes over time</b> are what only the string and the jawari can produce.</p>
+    <div class="card" id="card-split"><h3 id="split-title"></h3><p class="cap">RMS in dB of each part. The two real-vs-real rows show how big each part is between real plucks: the same pluck processed two ways, and another real pluck.</p>
+      <div class="tablewrap"><table id="splittable"></table></div></div>
+    <div class="grid2">
+      <div class="card" id="card-static"><h3>The fixed colour, per partial</h3><p class="cap">Time-averaged level difference of each partial (dB), with the overall offset removed.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-smooth"><h3>The smooth part: an EQ curve</h3><p class="cap">The smooth fit to the left chart: the EQ that would remove the tilt.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+    </div>
+  </section>
+
+  <section id="percept" aria-labelledby="h-percept">
+    <h2 id="h-percept">What the ear gets</h2>
+    <p>A simple model of hearing turns each sound into loudness per hearing band over time. It is based on ERB bands, masking spread between bands (Schroeder) and Zwicker's loudness compression, with your recording's loudest moment set to 75 dB SPL. The model's gain is matched for equal average loudness. Quiet details that are masked or below the threshold of hearing count for little here, unlike in the dB maps above.</p>
+    <div class="grid2">
+      <div class="card"><h3 id="pm-title">Loudness difference</h3><p class="cap">Specific loudness of the comparison minus your recording, per band and frame (sone per band).</p><div class="chart" id="pm-map"></div><div class="scale" id="pm-scale"></div></div>
+      <div class="card" id="card-pd"><h3>Perceptual difference over time</h3><p class="cap">Sum over bands of the absolute loudness difference, as a percentage of your recording's loudness in that frame.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+      <div class="card" id="card-phon"><h3>Loudness over time</h3><p class="cap">Total loudness as phon-equivalent (40 + 10 log2 of sones), after the gain match.</p><div class="legend"></div><div class="chart"></div>
+        <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+    </div>
+  </section>
+
+  <section id="loss" aria-labelledby="h-loss">
+    <h2 id="h-loss">Is the loss measuring the right thing?</h2>
+    <p>Each candidate distance was computed for four pairs per string:</p>
+    <ul>
+      <li>the round-3 model against your recording;</li>
+      <li>the round-2 model against your recording;</li>
+      <li>the iTanpura file against your file, which is largely the same pluck processed differently, so this is a floor set by processing alone;</li>
+      <li>CS3Alt against the iTanpura file, which are two different real plucks.</li>
+    </ul>
+    <p>The dot plot divides the model's distance by the "another real pluck" distance. At 1.0 the model is as different from your recording as another real pluck is from it. The gray tick shows where the same pluck processed twice sits. A good loss should put Sa (highlighted) on the left. Your ear puts it closest.</p>
+    <div class="card" id="card-dots"><h3>Model distance relative to another real pluck</h3><div class="legend" id="dots-legend"></div><div class="chart" id="dots"></div></div>
+    <div class="card" id="card-losstable"><h3>All distances</h3><p class="cap">Round-3 model and the yardsticks, per string. "Sa closest" asks whether the measure ranks Sa first among the three strings, raw and relative to another real pluck.</p><div class="tablewrap"><table id="losstable"></table></div></div>
+    <div class="card">
+      <h3>So how should the loss be computed?</h3>
+      <ol id="recommend"></ol>
+    </div>
+  </section>
+
+  <section id="recordings" aria-labelledby="h-rec">
+    <h2 id="h-rec">Your recordings</h2>
+    <p><b>Same-vibration test.</b> For harmonics 4-30, the phase of one file relative to the other is followed over time; a constant pitch offset is allowed. If two files are the same vibration, that phase stays fixed: coherence 1.0. Independent plucks drift: about 0.4. The level residual is what is left after a fixed EQ per harmonic and a common gain over time (compression) are removed. The two control rows are made from your file with known processing. Fast, heavy compression lowers the coherence too (the Sa compressor control scores 0.52 against your file), so a "different pluck" reading is less certain than a "same pluck" one. No pair of independent plucks scored above 0.53.</p>
+    <div class="card" id="card-foren"><h3 id="foren-title"></h3><div class="tablewrap"><table id="forentable"></table></div></div>
+    <div class="card" id="card-eq"><h3>The processing between copies of the same pluck</h3><p class="cap">Fixed level difference per harmonic, each file relative to the iTanpura CS3 file (dB, 0 at partials 4-15). This is the EQ that turns one into the other.</p><div class="legend"></div><div class="chart"></div>
+      <details><summary>Table</summary><div class="tablewrap"></div></details></div>
+  </section>
+
+  <section id="next" aria-labelledby="h-next">
+    <h2 id="h-next">What we have now, and next steps on your Mac</h2>
+    <div class="card" id="state"></div>
+    <div class="card">
+      <h3>Running it on the MacBook Pro</h3>
+      <pre id="mac"></pre>
+      <p class="small muted">Use about as many jobs as the Mac has performance cores. The recordings are only read, from the path in TANPURA_REFS; nothing from them is written into the repository.</p>
+    </div>
+    <p class="small muted" id="method"></p>
+  </section>
+</div>
+</div>
+
+<script id="report-data" type="application/json">/*__DATA__*/null</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = null;
+  try { DATA = JSON.parse(document.getElementById("report-data").textContent); } catch (e) { DATA = null; }
+  var root = document.getElementById("mr");
+  if (!DATA) { root.querySelector(".wrap").append(document.createTextNode("No data: run python match_report.py")); return; }
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var STR = DATA.strings, NAME = { kharaj: "Kharaj", pa: "Pa", sa: "Sa" };
+  var state = { s: "kharaj", cmp: "m3" };
+  var CMP = [
+    { key: "m3", label: "Model, round 3", diff: "m3_own", perc: "Nm", tag: "model" },
+    { key: "m2", label: "Model, round 2", diff: "m2_own", perc: "Nm2", tag: "model" },
+    { key: "rec_itan", label: "Same pluck, iTanpura file", diff: "itan_own", tag: "real" },
+    { key: "rec_alt", label: "Another pluck (CS3Alt)", diff: "alt_own", tag: "real" }
+  ];
+  var SER = {
+    rec_own: { name: "Your recording", color: "--s1" },
+    m3: { name: "Model, round 3", color: "--s2" },
+    m2: { name: "Model, round 2", color: "--ctx", ctx: true },
+    rec_itan: { name: "Same pluck, iTanpura file", color: "--s3" },
+    rec_alt: { name: "Another pluck (CS3Alt)", color: "--s3" }
+  };
+
+  // ---------------------------------------------------------------- helpers
+  function css(n) { return getComputedStyle(root).getPropertyValue(n).trim(); }
+  function el(tag, attrs) {
+    var e = document.createElement(tag), i, k;
+    attrs = attrs || {};
+    for (k in attrs) {
+      if (k === "class") e.className = attrs[k];
+      else if (k === "text") e.textContent = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    for (i = 2; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (c == null) continue;
+      e.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    }
+    return e;
+  }
+  function sv(tag, attrs) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function txt(x, y, s, a) { var t = sv("text", Object.assign({ x: x, y: y, fill: css("--muted"), "font-size": 11 }, a || {})); t.textContent = s; return t; }
+  function ok(v) { return v !== null && v !== undefined && isFinite(v); }
+  function fmt(v, nd) { if (!ok(v)) return "–"; nd = nd === undefined ? 1 : nd; var s = Math.abs(v).toFixed(nd); return (v < 0 && +s !== 0 ? "−" : "") + s; }
+  function fmtS(v, nd) { if (!ok(v)) return "–"; nd = nd === undefined ? 1 : nd; var s = Math.abs(v).toFixed(nd); return (+s === 0 ? "" : (v > 0 ? "+" : "−")) + s; }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+  function niceTicks(a, b, n) {
+    if (!(b > a)) { b = a + 1; }
+    var span = b - a, step = Math.pow(10, Math.floor(Math.log10(span / n))), err = n / span * step;
+    if (err <= 0.15) step *= 10; else if (err <= 0.35) step *= 5; else if (err <= 0.75) step *= 2;
+    var out = [], v = Math.ceil(a / step) * step;
+    for (; v <= b + step * 1e-9; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+  function logTicks(a, b) {
+    var c = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000], out = [];
+    for (var i = 0; i < c.length; i++) if (c[i] >= a && c[i] <= b) out.push(c[i]);
+    return out;
+  }
+  function hz(v) { return v >= 1000 ? (v / 1000) + "k" : String(v); }
+
+  // ---------------------------------------------------------------- colour (OKLab interpolation)
+  function hex2rgb(h) { h = h.replace("#", ""); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16) / 255; }); }
+  function lin(c) { return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function delin(c) { return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055; }
+  function toLab(rgb) {
+    var r = lin(rgb[0]), g = lin(rgb[1]), b = lin(rgb[2]);
+    var l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    var m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    var s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+  }
+  function fromLab(L) {
+    var l = Math.pow(L[0] + 0.3963377774 * L[1] + 0.2158037573 * L[2], 3);
+    var m = Math.pow(L[0] - 0.1055613458 * L[1] - 0.0638541728 * L[2], 3);
+    var s = Math.pow(L[0] - 0.0894841775 * L[1] - 1.2914855480 * L[2], 3);
+    var rgb = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+               -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
+    return rgb.map(function (c) { return Math.round(255 * Math.min(1, Math.max(0, delin(c)))); });
+  }
+  function ramp(hexes) {
+    var labs = hexes.map(function (h) { return toLab(hex2rgb(h)); });
+    return function (t) {
+      t = Math.min(1, Math.max(0, t));
+      var x = t * (labs.length - 1), i = Math.min(labs.length - 2, Math.floor(x)), f = x - i, a = labs[i], b = labs[i + 1];
+      return fromLab([a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2])]);
+    };
+  }
+  function seqRamp() { return ramp(css("--seq").split(",").map(function (s) { return s.trim(); })); }
+  function divRamp() { var lo = ramp([css("--div-lo"), css("--div-mid")]), hi = ramp([css("--div-mid"), css("--div-hi")]);
+    return function (t) { return t < 0.5 ? lo(t * 2) : hi((t - 0.5) * 2); }; }
+
+  // ---------------------------------------------------------------- tooltip
+  function makeTip(box) { var t = el("div", { class: "tip", role: "status" }); box.append(t); return t; }
+  function showTip(tip, box, x, y, title, rows) {
+    clear(tip);
+    tip.append(el("div", { class: "t", text: title }));
+    rows.forEach(function (r) {
+      var row = el("div", { class: "row" });
+      if (r.color) { var k = el("span", { class: "key" }); k.style.background = r.color; row.append(k); }
+      row.append(el("b", { text: r.value }), el("i", { text: r.name }));
+      tip.append(row);
+    });
+    tip.style.display = "block";
+    var bw = box.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+    var left = x + 14; if (left + tw > bw) left = Math.max(0, x - tw - 14);
+    var top = Math.max(0, y - th - 8);
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function hideTip(tip) { tip.style.display = "none"; }
+
+  // ---------------------------------------------------------------- line chart
+  function legend(node, series) {
+    clear(node);
+    if (series.length < 2) return;
+    series.forEach(function (s) {
+      var k = el("span", { class: "key" }); k.style.background = css(s.color);
+      if (s.ctx) k.style.height = "2px";
+      node.append(el("span", null, k, s.name));
+    });
+  }
+  function lineChart(box, cfg) {
+    clear(box);
+    var W = Math.max(cfg.minW || 260, box.clientWidth), H = cfg.height || 210, m = { l: cfg.compact ? 34 : 46, r: cfg.compact ? 6 : 14, t: 10, b: 32 };
+    var svg = sv("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", tabindex: 0, "aria-label": cfg.aria || "" });
+    var xs = cfg.x, series = cfg.series, i, j;
+    var xd = cfg.xDomain || [Math.min.apply(null, xs.filter(ok)), Math.max.apply(null, xs.filter(ok))];
+    var ylo = Infinity, yhi = -Infinity;
+    series.forEach(function (s) { s.values.forEach(function (v, k) { if (ok(v) && ok(xs[k]) && xs[k] >= xd[0] && xs[k] <= xd[1]) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); } }); });
+    if (cfg.yDomain) { ylo = cfg.yDomain[0]; yhi = cfg.yDomain[1]; }
+    if (cfg.yInclude) cfg.yInclude.forEach(function (v) { ylo = Math.min(ylo, v); yhi = Math.max(yhi, v); });
+    if (!(yhi > ylo)) { yhi = ylo + 1; }
+    var pad = (yhi - ylo) * 0.06; if (!cfg.yDomain) { ylo -= pad; yhi += pad; }
+    var lx = cfg.xLog;
+    var X = function (v) { return lx ? m.l + (Math.log10(v) - Math.log10(xd[0])) / (Math.log10(xd[1]) - Math.log10(xd[0])) * (W - m.l - m.r)
+                                    : m.l + (v - xd[0]) / (xd[1] - xd[0]) * (W - m.l - m.r); };
+    var Y = function (v) { return m.t + (1 - (v - ylo) / (yhi - ylo)) * (H - m.t - m.b); };
+    var yt = niceTicks(ylo, yhi, H > 180 ? 5 : 4);
+    yt.forEach(function (v) {
+      svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: css("--grid"), "stroke-width": 1 }));
+      svg.append(txt(m.l - 6, Y(v) + 4, (cfg.yFmt || fmt)(v, cfg.yNd === undefined ? (Math.abs(yt[1] - yt[0]) < 1 ? 1 : 0) : cfg.yNd), { "text-anchor": "end" }));
+    });
+    var xt = lx ? logTicks(xd[0], xd[1]) : niceTicks(xd[0], xd[1], W > 420 ? 6 : 4);
+    xt.forEach(function (v) { svg.append(txt(X(v), H - m.b + 15, lx ? hz(v) : (cfg.xFmt || fmt)(v, Math.abs(xt[1] - xt[0]) < 1 ? 1 : 0), { "text-anchor": "middle" })); });
+    svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: css("--axis"), "stroke-width": 1 }));
+    if (cfg.xLabel) svg.append(txt(W - m.r, H - 3, cfg.xLabel, { "text-anchor": "end" }));
+    if (cfg.yLabel) svg.append(txt(4, m.t + 2, cfg.yLabel, { "text-anchor": "start", dy: "-0.2em" }));
+    (cfg.refY || []).forEach(function (r) {
+      if (r.y < ylo || r.y > yhi) return;
+      svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: Y(r.y), y2: Y(r.y), stroke: css("--axis"), "stroke-width": 1 }));
+    });
+    var order = series.slice().sort(function (a, b) { return (b.ctx ? 1 : 0) - (a.ctx ? 1 : 0); });
+    order.forEach(function (s) {
+      var d = "", pen = false;
+      for (j = 0; j < xs.length; j++) {
+        var v = s.values[j];
+        if (!ok(v) || !ok(xs[j]) || xs[j] < xd[0] || xs[j] > xd[1]) { pen = false; continue; }
+        d += (pen ? "L" : "M") + X(xs[j]).toFixed(1) + " " + Y(v).toFixed(1);
+        pen = true;
+      }
+      svg.append(sv("path", { d: d, fill: "none", stroke: css(s.color), "stroke-width": s.ctx ? 1.5 : 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    });
+    box.append(svg);
+    // crosshair
+    var tip = makeTip(box), vline = sv("line", { y1: m.t, y2: H - m.b, stroke: css("--muted"), "stroke-width": 1, visibility: "hidden" });
+    svg.append(vline);
+    var idx = xs.map(function (v, k) { return k; }).filter(function (k) { return ok(xs[k]) && xs[k] >= xd[0] && xs[k] <= xd[1]; });
+    var cur = -1;
+    function at(k) {
+      cur = k; var px = X(xs[k]);
+      vline.setAttribute("x1", px); vline.setAttribute("x2", px); vline.setAttribute("visibility", "visible");
+      var rows = series.map(function (s) { return { color: css(s.color), value: (cfg.tipFmt || fmt)(s.values[k], cfg.tipNd === undefined ? 1 : cfg.tipNd) + (cfg.unit ? " " + cfg.unit : ""), name: s.name }; });
+      showTip(tip, box, px, m.t + 30, (cfg.xTip || function (v) { return fmt(v, 2) + " s"; })(xs[k]), rows);
+    }
+    svg.addEventListener("pointermove", function (ev) {
+      var r = svg.getBoundingClientRect(), px = ev.clientX - r.left, best = idx[0], bd = Infinity;
+      idx.forEach(function (k) { var dd = Math.abs(X(xs[k]) - px); if (dd < bd) { bd = dd; best = k; } });
+      at(best);
+    });
+    svg.addEventListener("pointerleave", function () { vline.setAttribute("visibility", "hidden"); hideTip(tip); });
+    svg.addEventListener("keydown", function (ev) {
+      var p = idx.indexOf(cur);
+      if (ev.key === "ArrowRight") { at(idx[Math.min(idx.length - 1, p + 1)]); ev.preventDefault(); }
+      if (ev.key === "ArrowLeft") { at(idx[Math.max(0, p < 0 ? 0 : p - 1)]); ev.preventDefault(); }
+    });
+    svg.addEventListener("blur", function () { vline.setAttribute("visibility", "hidden"); hideTip(tip); });
+  }
+
+  function seriesTable(node, x, series, xs_pick, xLabel, nd) {
+    clear(node);
+    var t = el("table"), hr = el("tr", null, el("th", { text: xLabel }));
+    series.forEach(function (s) { hr.append(el("th", { text: s.name })); });
+    t.append(hr);
+    xs_pick.forEach(function (k) {
+      var tr = el("tr", null, el("td", { text: fmt(x[k], x[k] < 10 ? 2 : 0) }));
+      series.forEach(function (s) { tr.append(el("td", { text: fmt(s.values[k], nd === undefined ? 1 : nd) })); });
+      t.append(tr);
+    });
+    node.append(t);
+  }
+  function pickTimes(t, times) { return times.map(function (x) { var b = 0, bd = Infinity; t.forEach(function (v, k) { if (ok(v) && Math.abs(v - x) < bd) { bd = Math.abs(v - x); b = k; } }); return b; }); }
+
+  // ---------------------------------------------------------------- heatmap
+  function heatmap(box, cfg) {
+    clear(box);
+    var W = Math.max(240, box.clientWidth), H = cfg.height || 260, m = { l: 34, r: 6, t: 4, b: 28 };
+    var M = cfg.M, nr = M.length, nc = M[0].length, pw = W - m.l - m.r, ph = H - m.t - m.b;
+    box.style.height = H + "px";
+    var dpr = window.devicePixelRatio || 1;
+    var cv = el("canvas", { width: Math.round(pw * dpr), height: Math.round(ph * dpr), role: "img", "aria-label": cfg.aria || "" });
+    cv.style.left = m.l + "px"; cv.style.top = m.t + "px"; cv.style.width = pw + "px"; cv.style.height = ph + "px";
+    var off = document.createElement("canvas"); off.width = nc; off.height = nr;
+    var ctx = off.getContext("2d"), img = ctx.createImageData(nc, nr), surf = hex2rgb(css("--surface")).map(function (c) { return Math.round(c * 255); });
+    for (var r = 0; r < nr; r++) for (var c = 0; c < nc; c++) {
+      var v = M[r][c], o = ((nr - 1 - r) * nc + c) * 4, rgb = ok(v) ? cfg.color(v) : surf;
+      img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    var g = cv.getContext("2d"); g.imageSmoothingEnabled = false; g.drawImage(off, 0, 0, cv.width, cv.height);
+    box.append(cv);
+    var svg = sv("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, tabindex: 0, "aria-label": cfg.aria || "" });
+    svg.style.position = "absolute"; svg.style.left = "0"; svg.style.top = "0";
+    var xs = cfg.x, x0 = xs[0], x1 = xs[xs.length - 1];
+    var X = function (v) { return m.l + (v - x0) / (x1 - x0) * pw; };
+    var xnd = cfg.xNd !== undefined ? cfg.xNd : (x1 - x0 < 1 ? 2 : 1);
+    niceTicks(x0, x1, W > 360 ? 5 : 3).forEach(function (v) { svg.append(txt(X(v), H - m.b + 15, fmt(v, xnd), { "text-anchor": "middle" })); });
+    svg.append(txt(W - m.r, H - 3, cfg.xLabel || "s", { "text-anchor": "end" }));
+    (cfg.yTicks || []).forEach(function (yt) {
+      var py = m.t + ph - (yt.i + 0.5) / nr * ph;
+      svg.append(txt(m.l - 5, py + 4, yt.label, { "text-anchor": "end" }));
+    });
+    var hl = sv("rect", { fill: "none", stroke: css("--ink"), "stroke-width": 1, visibility: "hidden" });
+    svg.append(hl);
+    box.append(svg);
+    var tip = makeTip(box);
+    function show(rr, cc) {
+      var cw = pw / nc, ch = ph / nr;
+      hl.setAttribute("x", m.l + cc * cw); hl.setAttribute("y", m.t + (nr - 1 - rr) * ch);
+      hl.setAttribute("width", Math.max(2, cw)); hl.setAttribute("height", Math.max(2, ch)); hl.setAttribute("visibility", "visible");
+      var info = cfg.tip(rr, cc);
+      showTip(tip, box, m.l + (cc + 0.5) * cw, m.t + (nr - 1 - rr) * ch, info.title, info.rows);
+    }
+    var cur = [0, 0];
+    svg.addEventListener("pointermove", function (ev) {
+      var b = svg.getBoundingClientRect(), px = ev.clientX - b.left - m.l, py = ev.clientY - b.top - m.t;
+      if (px < 0 || py < 0 || px > pw || py > ph) { hl.setAttribute("visibility", "hidden"); hideTip(tip); return; }
+      var cc = Math.min(nc - 1, Math.floor(px / pw * nc)), rr = nr - 1 - Math.min(nr - 1, Math.floor(py / ph * nr));
+      cur = [rr, cc]; show(rr, cc);
+    });
+    svg.addEventListener("pointerleave", function () { hl.setAttribute("visibility", "hidden"); hideTip(tip); });
+    svg.addEventListener("keydown", function (ev) {
+      var mv = { ArrowUp: [1, 0], ArrowDown: [-1, 0], ArrowRight: [0, 1], ArrowLeft: [0, -1] }[ev.key];
+      if (!mv) return;
+      cur = [Math.max(0, Math.min(nr - 1, cur[0] + mv[0])), Math.max(0, Math.min(nc - 1, cur[1] + mv[1]))];
+      show(cur[0], cur[1]); ev.preventDefault();
+    });
+    svg.addEventListener("blur", function () { hl.setAttribute("visibility", "hidden"); hideTip(tip); });
+  }
+  function scaleLegend(node, label, colorFn, lo, hi, loLabel, hiLabel) {
+    var wrap = el("span", { class: "scale" });
+    var cv = el("canvas", { width: 140, height: 8 }), g = cv.getContext("2d");
+    for (var i = 0; i < 140; i++) { var c = colorFn(lo + (hi - lo) * i / 139); g.fillStyle = "rgb(" + c.join(",") + ")"; g.fillRect(i, 0, 1, 8); }
+    wrap.append(el("span", { text: label }), el("span", { text: loLabel }), cv, el("span", { text: hiLabel }));
+    node.append(wrap);
+  }
+
+  // ---------------------------------------------------------------- data access
+  function R() { return DATA.results[state.s]; }
+  function cmpDef() { return CMP.filter(function (c) { return c.key === state.cmp; })[0]; }
+  function sigLabel(k) { return SER[k].name; }
+
+  // ---------------------------------------------------------------- sections
+  function renderHeader() {
+    document.getElementById("subtitle").textContent = "Generated " + DATA.generated + ". The round-3 model (and round 2 for context) against your recordings (Mumu_Tanpura/Male/tt_CS3_*), analysed from the onset to 3.8 s (Sa 3.0 s, where its file fades). Analysis only: no simulation was run for this page.";
+    var f = document.getElementById("findings"); clear(f);
+    DATA.findings.forEach(function (x) { f.append(el("div", { class: "finding" }, el("h3", { text: x.title }), el("p", { text: x.text }))); });
+    var t = document.getElementById("difftable"); clear(t);
+    var hr = el("tr", null, el("th", { text: "Difference" }));
+    STR.forEach(function (s) { hr.append(el("th", { text: NAME[s] + " (you: " + DATA.verdict[s] + ")" })); });
+    hr.append(el("th", { text: "Follows your ear" }));
+    t.append(hr);
+    DATA.table.forEach(function (r) {
+      var tr = el("tr", null, el("td", null, el("span", { text: r.label }), el("br"), el("span", { class: "small muted", text: r.what })));
+      STR.forEach(function (s) {
+        var nd = r.unit === "s" ? 2 : 1;
+        tr.append(el("td", null, el("b", { text: fmtS(r.diff[s], nd) + " " + r.unit }), el("br"),
+          el("span", { class: "small muted", text: fmt(r.model[s], nd) + " vs " + fmt(r.real[s], nd) })));
+      });
+      tr.append(el("td", null, el("span", { class: r.tracks_ear ? "yes" : "no", text: r.tracks_ear ? "yes" : "no" })));
+      t.append(tr);
+    });
+  }
+
+  function renderControls() {
+    var ss = document.getElementById("sel-string"), sc = document.getElementById("sel-cmp");
+    clear(ss); clear(sc);
+    STR.forEach(function (s) {
+      var b = el("button", { type: "button", "aria-pressed": String(state.s === s), text: NAME[s] + (DATA.verdict[s] === "close" ? " · close" : "") });
+      b.addEventListener("click", function () { state.s = s; renderControls(); renderString(); });
+      ss.append(b);
+    });
+    CMP.forEach(function (c) {
+      var b = el("button", { type: "button", "aria-pressed": String(state.cmp === c.key), text: c.label });
+      b.addEventListener("click", function () { state.cmp = c.key; renderControls(); renderString(); });
+      sc.append(b);
+    });
+  }
+
+  function renderHeatmaps() {
+    var r = R(), H = r.heat, c = cmpDef(), seq = seqRamp(), dv = divRamp();
+    var t = H.t, f0 = H.f0;
+    var ymax = Math.min(H.maps.rec_own.L.length, H.maps[c.key].L.length, H.diff[c.diff].length, 60);
+    function crop(M) { return M.slice(0, ymax); }
+    var A = crop(H.maps.rec_own.L), B = crop(H.maps[c.key].L), D = crop(H.diff[c.diff]);
+    var yt = []; [1, 5, 10, 20, 30, 40, 50, 60].forEach(function (n) { if (n <= ymax) yt.push({ i: n - 1, label: String(n) }); });
+    var levColor = function (v) { return seq((v + 60) / 60); };
+    var difColor = function (v) { return dv((v + 20) / 40); };
+    document.getElementById("hm-title-a").textContent = "Your recording";
+    document.getElementById("hm-title-b").textContent = c.label;
+    document.getElementById("hm-title-c").textContent = c.label + " minus your recording";
+    var hgt = Math.max(220, Math.min(340, ymax * 5));
+    function tipFor(rr, cc) {
+      var fz = (rr + 1) * f0;
+      return { title: "Partial " + (rr + 1) + " (" + fmt(fz, 0) + " Hz), " + fmt(t[cc], 2) + " s", rows: [
+        { color: css("--s1"), value: fmt(A[rr][cc], 0) + " dB", name: "Your recording" },
+        { color: css(c.tag === "model" ? "--s2" : "--s3"), value: fmt(B[rr][cc], 0) + " dB", name: c.label },
+        { value: ok(D[rr][cc]) ? fmtS(D[rr][cc], 0) + " dB" : "not compared", name: "difference (energy-matched)" }] };
+    }
+    heatmap(document.getElementById("hm-a"), { M: A, x: t, yTicks: yt, color: levColor, tip: tipFor, height: hgt, aria: "Partial levels over time, your recording" });
+    heatmap(document.getElementById("hm-b"), { M: B, x: t, yTicks: yt, color: levColor, tip: tipFor, height: hgt, aria: "Partial levels over time, " + c.label });
+    heatmap(document.getElementById("hm-c"), { M: D, x: t, yTicks: yt, color: difColor, tip: tipFor, height: hgt, aria: "Level difference per partial over time" });
+    var sc = document.getElementById("hm-scales"); clear(sc);
+    scaleLegend(sc, "Level", levColor, -60, 0, "−60 dB", "0 dB");
+    scaleLegend(sc, "Difference", difColor, -20, 20, "−20 dB (quieter)", "+20 dB (louder)");
+    sc.append(el("span", { class: "small muted note", text: "Blank cells in the difference map are where neither signal has the partial within 40 dB of its loudest at that moment." }));
+    // table: partial levels at key times
+    var tb = document.getElementById("hm-table"); clear(tb);
+    var times = [0.1, 0.3, 0.5, 1.0, 2.0, Math.min(3.0, r.t_end)], ks = pickTimes(t, times);
+    var tab = el("table"), hr = el("tr", null, el("th", { text: "Partial" }));
+    times.forEach(function (x) { hr.append(el("th", { text: fmt(x, 1) + " s: yours / " + (c.tag === "model" ? "model" : "other") })); });
+    tab.append(hr);
+    for (var n = 0; n < Math.min(30, ymax); n++) {
+      var tr = el("tr", null, el("td", { text: String(n + 1) }));
+      ks.forEach(function (k) { tr.append(el("td", { text: fmt(A[n][k], 0) + " / " + fmt(B[n][k], 0) })); });
+      tab.append(tr);
+    }
+    tb.append(tab);
+  }
+
+  function seriesFor(keys, getter) {
+    return keys.map(function (k) { return { key: k, name: SER[k].name, color: SER[k].color, ctx: SER[k].ctx, values: getter(k) }; });
+  }
+  function cardLine(id, cfg, tableTimes, tableLabel) {
+    var card = document.getElementById(id), lg = card.querySelector(".legend"), box = card.querySelector(".chart");
+    legend(lg, cfg.series);
+    lineChart(box, cfg);
+    var tw = card.querySelector("details .tablewrap");
+    if (tw) seriesTable(tw, cfg.x, cfg.series, tableTimes || pickTimes(cfg.x, [0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5].filter(function (v) { return v <= R().t_end; })), tableLabel || "Time (s)", cfg.tipNd);
+  }
+
+  function renderSwell() {
+    var r = R(), S = r.series, t = S.t, keys = ["rec_own", "m3", "m2"];
+    cardLine("card-level", { x: t, series: seriesFor(keys, function (k) { return S.sig[k].level; }), unit: "dB", yLabel: "dB", xLabel: "s", aria: "Level over time" });
+    var Y = r.yin;
+    var yinSeries = seriesFor(keys, function (k) { return Y[k].cents; });
+    cardLine("card-pitch", { x: Y.t, series: yinSeries, unit: "cents", yLabel: "cents", xLabel: "s", refY: [{ y: 0 }], aria: "Pitch over the first 0.8 s",
+                             xTip: function (v) { return fmt(1000 * v, 0) + " ms"; } },
+             pickTimes(Y.t, [0.02, 0.05, 0.08, 0.12, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75]));
+    cardLine("card-formant", { x: t, series: seriesFor(keys, function (k) { return S.sig[k].formant; }), unit: "", yLabel: "partial", xLabel: "s", tipNd: 1, aria: "Jawari formant over time" });
+    cardLine("card-pitch2", { x: t, xDomain: [0.1, r.t_end], series: seriesFor(keys, function (k) { return S.sig[k].pitch; }), unit: "cents", yLabel: "cents", xLabel: "s", refY: [{ y: 0 }], aria: "Pitch over the whole note" });
+    // bands: small multiples
+    var card = document.getElementById("card-bands"), g = document.getElementById("bands");
+    legend(card.querySelector(".legend"), seriesFor(keys, function () { return []; }));
+    clear(g);
+    var all = [];
+    DATA.bands.forEach(function (b) {
+      var sub = el("div", null, el("div", { class: "small", text: "Partials " + b.replace("-", "–") }), el("div", { class: "chart" }));
+      g.append(sub);
+      var ser = seriesFor(keys, function (k) { return S.sig[k].bands[b] || []; });
+      all.push({ b: b, ser: ser });
+      lineChart(sub.querySelector(".chart"), { x: t, series: ser, unit: "dB", height: 170, minW: 140, compact: true, aria: "Share of partials " + b + " over time" });
+    });
+    var tw = card.querySelector("details .tablewrap"); clear(tw);
+    var times = [0.1, 0.3, 0.5, 1, 2, Math.min(3, r.t_end)], ks = pickTimes(t, times), tab = el("table");
+    var hr = el("tr", null, el("th", { text: "Partials" }), el("th", { text: "Signal" }));
+    times.forEach(function (x) { hr.append(el("th", { text: fmt(x, 1) + " s" })); });
+    tab.append(hr);
+    all.forEach(function (a) { a.ser.forEach(function (s) {
+      var tr = el("tr", null, el("td", { text: a.b }), el("td", { text: s.name }));
+      ks.forEach(function (k) { tr.append(el("td", { text: fmt(s.values[k], 1) })); });
+      tab.append(tr);
+    }); });
+    tw.append(tab);
+  }
+
+  function renderPartials() {
+    var r = R(), P = r.partials, keys = ["rec_own", "m3", "m2"], N = Math.min(40, P.rec_own.t_peak.length);
+    var x = []; for (var i = 1; i <= N; i++) x.push(i);
+    var xt = function (v) { return "Partial " + v + " (" + fmt(v * r.heat.f0, 0) + " Hz)"; };
+    var picks = [0, 1, 2, 3, 4, 5, 6, 7, 9, 11, 14, 19, 24, 29, 34, 39].filter(function (k) { return k < N; });
+    function cut(a) { return a.slice(0, N); }
+    cardLine("card-tpeak", { x: x, series: seriesFor(keys, function (k) { return cut(P[k].t_peak); }), unit: "s", tipNd: 2, xTip: xt, xLabel: "partial", yLabel: "s", aria: "Peak time per partial" }, picks, "Partial");
+    cardLine("card-peak", { x: x, series: seriesFor(keys, function (k) { return cut(P[k].peak); }), unit: "dB", xTip: xt, xLabel: "partial", yLabel: "dB", aria: "Peak level per partial" }, picks, "Partial");
+    cardLine("card-decay", { x: x, series: seriesFor(keys, function (k) { return cut(P[k].decay); }), unit: "dB/s", xTip: xt, xLabel: "partial", yLabel: "dB/s", refY: [{ y: 0 }], aria: "Decay rate per partial" }, picks, "Partial");
+  }
+
+  function renderAttack() {
+    var r = R(), A = r.attack, seq = seqRamp(), c = cmpDef();
+    var key = (c.key === "m2") ? "m2" : "m3";
+    document.getElementById("at-title-b").textContent = key === "m2" ? "Model, round 2" : "Model, round 3";
+    var fc = A.fc, yt = [];
+    [100, 200, 500, 1000, 2000, 5000, 10000].forEach(function (f) { var b = 0, bd = Infinity; fc.forEach(function (v, k) { if (Math.abs(Math.log(v / f)) < bd) { bd = Math.abs(Math.log(v / f)); b = k; } }); if (bd < 0.25) yt.push({ i: b, label: hz(f) }); });
+    var col = function (v) { return seq((v + 50) / 50); };
+    var tt = A.t.map(function (v) { return v * 1000; });
+    function tipA(M, name) { return function (rr, cc) { return { title: fmt(fc[rr], 0) + " Hz band, " + fmt(tt[cc], 0) + " ms", rows: [{ value: fmt(M[rr][cc], 0) + " dB", name: name }] }; }; }
+    heatmap(document.getElementById("at-a"), { M: A.rec_own.L, x: tt, xLabel: "ms", xNd: 0, yTicks: yt, color: col, tip: tipA(A.rec_own.L, "Your recording"), height: 220, aria: "Attack spectrogram, your recording" });
+    heatmap(document.getElementById("at-b"), { M: A[key].L, x: tt, xLabel: "ms", xNd: 0, yTicks: yt, color: col, tip: tipA(A[key].L, SER[key].name), height: 220, aria: "Attack spectrogram, model" });
+    var sc = document.getElementById("at-scale"); clear(sc);
+    scaleLegend(sc, "Level", col, -50, 0, "−50 dB", "0 dB (band maximum)");
+    var keys = ["rec_own", "m3", "m2"];
+    cardLine("card-contrast", { x: fc, xLog: true, xDomain: [80, 12000], series: seriesFor(keys, function (k) { return A[k].contrast; }), unit: "dB", yLabel: "dB", refY: [{ y: 0 }],
+                                xTip: function (v) { return fmt(v, 0) + " Hz band"; }, aria: "Attack brightness per band" },
+             pickTimes(fc, [100, 200, 400, 700, 1000, 1500, 2000, 3000, 4000, 6000, 9000]), "Band (Hz)");
+  }
+
+  function renderSplit() {
+    var r = R(), sp = r.split;
+    document.getElementById("split-title").textContent = NAME[state.s] + ": parts of the mismatch";
+    var rows = [["m3_own", "Model round 3 vs your recording"], ["m2_own", "Model round 2 vs your recording"], ["itan_own", "Same pluck processed twice (iTanpura vs your file)"], ["alt_itan", "Another real pluck (CS3Alt vs iTanpura)"]];
+    var t = document.getElementById("splittable"); clear(t);
+    var cols = [["total", "Total"], ["static_smooth", "Smooth fixed tilt"], ["static_rough", "Fixed per partial"], ["dynamic", "Changes over time"]];
+    var hr = el("tr", null, el("th", { text: "Pair" })); cols.forEach(function (c) { hr.append(el("th", { text: c[1] + " (dB)" })); }); t.append(hr);
+    var vmax = 0; rows.forEach(function (rw) { cols.forEach(function (c) { vmax = Math.max(vmax, sp[rw[0]].rms[c[0]]); }); });
+    rows.forEach(function (rw) {
+      var tr = el("tr", null, el("td", { text: rw[1] }));
+      cols.forEach(function (c) {
+        var v = sp[rw[0]].rms[c[0]], share = c[0] === "total" ? null : sp[rw[0]].share[c[0]];
+        var meter = el("span", { class: "meter" }); meter.style.width = Math.round(60 * v / vmax) + "px";
+        tr.append(el("td", null, el("span", { text: fmt(v, 1) + (share !== null ? " (" + Math.round(100 * share) + "%)" : "") }), meter));
+      });
+      t.append(tr);
+    });
+    var st = r.static, x = st.m3_own.freq;
+    var ser1 = [{ name: "Model round 3 vs yours", color: "--s2", values: st.m3_own.s },
+                { name: "Same pluck: iTanpura vs yours", color: "--s3", values: st.itan_own.s }];
+    var ser2 = [{ name: "Model round 3 vs yours", color: "--s2", values: st.m3_own.smooth },
+                { name: "Model round 2 vs yours", color: "--ctx", ctx: true, values: st.m2_own.smooth },
+                { name: "Same pluck: iTanpura vs yours", color: "--s3", values: st.itan_own.smooth }];
+    var picks = pickTimes(x, [70, 100, 140, 200, 300, 500, 700, 1000, 1500, 2000, 3000, 4000, 5000]);
+    var fx = function (v) { return fmt(v, 0) + " Hz"; };
+    cardLine("card-static", { x: x, xLog: true, xDomain: [Math.max(50, x[0] * 0.9), x[x.length - 1]], series: ser1, unit: "dB", yLabel: "dB", refY: [{ y: 0 }], xTip: fx, aria: "Fixed colour per partial" }, picks, "Partial (Hz)");
+    cardLine("card-smooth", { x: x, xLog: true, xDomain: [Math.max(50, x[0] * 0.9), x[x.length - 1]], series: ser2, unit: "dB", yLabel: "dB", refY: [{ y: 0 }], xTip: fx, aria: "Smooth EQ-like part" }, picks, "Partial (Hz)");
+  }
+
+  function renderPercept() {
+    var r = R(), Pm = r.perc, c = cmpDef(), dv = divRamp();
+    var useM = (c.key === "m2") ? Pm.Nm2 : Pm.Nm;
+    var label = (c.key === "m2") ? "Model, round 2" : "Model, round 3";
+    document.getElementById("pm-title").textContent = "Loudness difference: " + label + " minus your recording";
+    var D = useM.map(function (row, i) { return row.map(function (v, j) { var a = Pm.Nr[i][j]; return ok(v) && ok(a) ? v - a : null; }); });
+    var amax = 0; D.forEach(function (row) { row.forEach(function (v) { if (ok(v)) amax = Math.max(amax, Math.abs(v)); }); });
+    amax = Math.max(0.05, amax * 0.6);
+    var fc = Pm.fc, yt = [];
+    [100, 200, 500, 1000, 2000, 5000, 10000].forEach(function (f) { var b = 0, bd = Infinity; fc.forEach(function (v, k) { if (Math.abs(Math.log(v / f)) < bd) { bd = Math.abs(Math.log(v / f)); b = k; } }); if (bd < 0.25) yt.push({ i: b, label: hz(f) }); });
+    var col = function (v) { return dv((v / amax + 1) / 2); };
+    heatmap(document.getElementById("pm-map"), { M: D, x: Pm.t, yTicks: yt, color: col, height: 240, aria: "Specific loudness difference",
+      tip: function (rr, cc) { return { title: fmt(fc[rr], 0) + " Hz band, " + fmt(Pm.t[cc], 2) + " s", rows: [
+        { color: css("--s1"), value: fmt(Pm.Nr[rr][cc], 2), name: "Your recording (sone/band)" },
+        { color: css("--s2"), value: fmt(useM[rr][cc], 2), name: label },
+        { value: fmtS(D[rr][cc], 2), name: "difference" }] }; } });
+    var sc = document.getElementById("pm-scale"); clear(sc);
+    scaleLegend(sc, "", col, -amax, amax, "−" + amax.toFixed(2) + " (quieter)", "+" + amax.toFixed(2) + " (louder)");
+    var tt = Pm.t;
+    var ser = [{ name: "Model round 3", color: "--s2", values: Pm.d.m3_own }, { name: "Model round 2", color: "--ctx", ctx: true, values: Pm.d.m2_own },
+               { name: "Same pluck processed twice", color: "--s3", values: Pm.d.itan_own }];
+    var tN = Math.min(tt.length, ser[0].values.length);
+    cardLine("card-pd", { x: tt.slice(0, tN), series: ser.map(function (s) { return Object.assign({}, s, { values: s.values.slice(0, tN) }); }), unit: "%", yLabel: "%", aria: "Perceptual difference over time" });
+    cardLine("card-phon", { x: tt, series: [{ name: "Your recording", color: "--s1", values: Pm.phon.rec_own }, { name: "Model round 3", color: "--s2", values: Pm.phon.m3 },
+                                             { name: "Model round 2", color: "--ctx", ctx: true, values: Pm.phon.m2 }], unit: "phon", yLabel: "phon", aria: "Loudness over time" });
+  }
+
+  function renderLoss() {
+    var A = DATA.agreement, defs = DATA.losses_def;
+    // dot plot: one row per loss, K / P / S dots (S emphasised), gray tick = same pluck processed
+    var box = document.getElementById("dots"); clear(box);
+    var lg = document.getElementById("dots-legend"); clear(lg);
+    var k1 = el("span", { class: "key" }); k1.style.background = css("--s2"); k1.style.height = "8px"; k1.style.width = "8px"; k1.style.borderRadius = "4px";
+    var k2 = el("span", { class: "key" }); k2.style.background = css("--ctx"); k2.style.height = "8px"; k2.style.width = "8px"; k2.style.borderRadius = "4px";
+    var k3 = el("span", { class: "key" }); k3.style.background = css("--ink2"); k3.style.width = "2px"; k3.style.height = "12px";
+    lg.append(el("span", null, k1, "Sa (heard as close)"), el("span", null, k2, "Kharaj (K), Pa (P)"), el("span", null, k3, "same pluck processed twice"));
+    var W = Math.max(300, box.clientWidth), rowH = 40, m = { l: Math.min(230, W * 0.42), r: 16, t: 8, b: 30 }, H = m.t + m.b + rowH * defs.length;
+    var svg = sv("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Model distance relative to another real pluck, per loss and string" });
+    var xmax = 0; defs.forEach(function (d) { STR.forEach(function (s) { var v = A[d.key].norm[s]; if (ok(v)) xmax = Math.max(xmax, v); }); });
+    xmax = Math.max(1.4, Math.ceil(xmax * 5) / 5);
+    var X = function (v) { return m.l + v / xmax * (W - m.l - m.r); };
+    niceTicks(0, xmax, 5).forEach(function (v) {
+      svg.append(sv("line", { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, stroke: css("--grid"), "stroke-width": 1 }));
+      svg.append(txt(X(v), H - m.b + 15, fmt(v, 1), { "text-anchor": "middle" }));
+    });
+    svg.append(sv("line", { x1: X(1), x2: X(1), y1: m.t, y2: H - m.b, stroke: css("--axis"), "stroke-width": 1 }));
+    svg.append(txt(X(1), H - 3, "1.0 = as far as another real pluck", { "text-anchor": "middle" }));
+    var tip = makeTip(box);
+    defs.forEach(function (d, i) {
+      var a = A[d.key], cy = m.t + rowH * (i + 0.5);
+      var lab = txt(m.l - 10, cy + 4, d.label, { "text-anchor": "end", fill: css("--ink"), "font-size": 12 });
+      svg.append(lab);
+      var same = STR.map(function (s) { return a.same[s] / a.yard[s]; }).filter(ok);
+      if (same.length) { var mean = same.reduce(function (p, q) { return p + q; }, 0) / same.length;
+        svg.append(sv("line", { x1: X(mean), x2: X(mean), y1: cy - 8, y2: cy + 8, stroke: css("--ink2"), "stroke-width": 2 })); }
+      var order = ["kharaj", "pa", "sa"].filter(function (s) { return ok(a.norm[s]); }).sort(function (p, q) { return a.norm[p] - a.norm[q]; });
+      var below = {}, lastX = -1e9, flip = false;
+      order.forEach(function (s) { var px = X(a.norm[s]); flip = (px - lastX < 14) ? !flip : false; below[s] = flip; lastX = px; });
+      order.forEach(function (s) {
+        var v = a.norm[s]; if (!ok(v)) return;
+        var isSa = s === "sa", g = sv("g", { tabindex: 0 });
+        var cx = X(v);
+        g.append(sv("circle", { cx: cx, cy: cy, r: 12, fill: "transparent" }));
+        g.append(sv("circle", { cx: cx, cy: cy, r: isSa ? 5.5 : 4.5, fill: css(isSa ? "--s2" : "--ctx"), stroke: css("--surface"), "stroke-width": 2 }));
+        g.append(txt(cx, below[s] ? cy + 16 : cy - 8, isSa ? "S" : (s === "pa" ? "P" : "K"), { "text-anchor": "middle", fill: css("--ink2"), "font-size": 10 }));
+        var show = function () { showTip(tip, box, cx, cy, d.label + ", " + NAME[s], [
+          { value: fmt(v, 2), name: "relative to another real pluck" },
+          { value: fmt(a.raw[s], 1) + (d.unit ? " " + d.unit : ""), name: "model round 3 vs yours" },
+          { value: fmt(a.yard[s], 1) + (d.unit ? " " + d.unit : ""), name: "another real pluck" },
+          { value: fmt(a.same[s], 1) + (d.unit ? " " + d.unit : ""), name: "same pluck processed twice" }]); };
+        g.addEventListener("pointerenter", show); g.addEventListener("focus", show);
+        g.addEventListener("pointerleave", function () { hideTip(tip); }); g.addEventListener("blur", function () { hideTip(tip); });
+        svg.append(g);
+      });
+    });
+    box.append(svg);
+    // table
+    var t = document.getElementById("losstable"); clear(t);
+    var hr = el("tr", null, el("th", { text: "Distance" }));
+    STR.forEach(function (s) { hr.append(el("th", { text: NAME[s] + ": model / same pluck / other pluck" })); });
+    hr.append(el("th", { text: "Sa closest (raw)" }), el("th", { text: "Sa closest (relative)" }));
+    t.append(hr);
+    defs.forEach(function (d) {
+      var a = A[d.key];
+      var tr = el("tr", null, el("td", null, el("span", { text: d.label + (d.unit ? " (" + d.unit + ")" : "") }), el("br"), el("span", { class: "small muted", text: d.what })));
+      STR.forEach(function (s) { tr.append(el("td", { text: fmt(a.raw[s], 1) + " / " + fmt(a.same[s], 1) + " / " + fmt(a.yard[s], 1) })); });
+      tr.append(el("td", null, el("span", { class: a.agrees_raw ? "yes" : "no", text: a.agrees_raw ? "yes" : "no" })));
+      tr.append(el("td", null, el("span", { class: a.agrees_norm ? "yes" : "no", text: a.agrees_norm ? "yes" : "no" })));
+      t.append(tr);
+    });
+    // recommendations
+    var ol = document.getElementById("recommend"); clear(ol);
+    var d3 = A.d3, pld = A.pld;
+    [
+      "Score what you hear first: the swell (when it peaks and how big it gets), the pitch slide after the pluck, and how the partials take turns over time. The current loss has no pitch term at all, and it weights the swell timing too lightly: the fitted kharaj peaks 0.4 s late.",
+      "Compare in a hearing-based domain: loudness per ERB band over time, with masking and loudness compression, as on this page. Do not compare raw dB per partial, which counts inaudible detail as much as audible detail. By that measure the same pluck processed twice is about half as far apart as the model is from your file (kharaj " + fmt(pld.same.kharaj, 0) + "% vs " + fmt(pld.raw.kharaj, 0) + "%), which is the right order.",
+      "Make it blind to a fixed EQ. Fit one smooth EQ curve per reference (a few shelves or a low-order polynomial over log-frequency) as a free part of the output chain, inside the loss. Then a recording's microphone or processing cannot be mistaken for string physics. The physics must still explain everything that changes over time.",
+      "Calibrate it with real-vs-real distances. Divide by the distance between two real plucks of the same string, so that 1.0 means \"as different as another real pluck\". The target is to get well below 1 and towards the same-pluck floor. Your files and the iTanpura files are largely the same plucks, so more independent plucks are needed. Two or three plucks of your own tanpura per string, recorded the same way, would do.",
+      "Validate it on your ears, because the ear is the ground truth. Render about 10-20 variants and rate each against the recording on a 0-100 slider (MUSHRA-style). Then fit the loss weights so its ranking matches yours. Three strings and one verdict can only point the way: so far, the swell and the pitch slide agree with you, and the tone balance does not.",
+      "Fit several plucks at once, with the string shared and the excitation free per pluck. Then the model cannot overfit one pluck. D3 shows how easy that is: it scores the kharaj model (" + fmt(d3.raw.kharaj, 0) + ") closer to your file than the same pluck processed differently (" + fmt(d3.same.kharaj, 0) + ")."
+    ].forEach(function (s) { ol.append(el("li", { text: s })); });
+  }
+
+  function renderForensics() {
+    var F = DATA.forensics[state.s];
+    document.getElementById("foren-title").textContent = NAME[state.s] + ": which files are the same pluck";
+    var t = document.getElementById("forentable"); clear(t);
+    t.append(el("tr", null, el("th", { text: "File" }), el("th", { text: "Pitch (Hz)" }), el("th", { text: "Cents vs iTanpura" }),
+      el("th", { text: "Coherence vs iTanpura CS3" }), el("th", { text: "Level residual (dB)" }), el("th", { text: "Coherence vs your file" }), el("th", { text: "Reading" })));
+    F.rows.forEach(function (r) {
+      if (r.error) { t.append(el("tr", null, el("td", { text: r.file }), el("td", { text: "could not be read" }))); return; }
+      var lab = r.kind === "own" ? r.file + " (your reference)" : r.file;
+      t.append(el("tr", null, el("td", { text: lab }), el("td", { text: fmt(r.f0, 2) }), el("td", { text: fmtS(r.cents_vs_itan, 1) }),
+        el("td", { text: fmt(r.coh_itan, 2) }), el("td", { text: fmt(r.resid_itan, 1) }), el("td", { text: r.coh_own !== undefined ? fmt(r.coh_own, 2) : "–" }),
+        el("td", { text: r.kind === "control" ? "control (made from your file): " + r.verdict_own + " vs your file" : r.verdict_itan })));
+    });
+    var card = document.getElementById("card-eq"), keys = Object.keys(F.eq);
+    keys.sort(function (a, b) { return F.eq[b].coh - F.eq[a].coh; });
+    var own = keys.filter(function (k) { return k.indexOf("Male/") >= 0; }), rest = keys.filter(function (k) { return k.indexOf("Male/") < 0; });
+    var pick = own.concat(rest).slice(0, 3), cols = ["--s1", "--s3", "--ctx"];
+    if (!pick.length) { clear(card.querySelector(".chart")); card.querySelector(".chart").append(el("p", { class: "small muted", text: "No file is close enough to the iTanpura file for an EQ curve." })); return; }
+    var x = F.eq[pick[0]].f;
+    var ser = pick.map(function (k, i) { return { name: k.split("/").pop() + " (coherence " + fmt(F.eq[k].coh, 2) + ")", color: cols[i], ctx: i === 2, values: F.eq[k].eq }; });
+    cardLine("card-eq", { x: x, xLog: true, xDomain: [Math.max(50, x[0] * 0.9), x[x.length - 1]], series: ser, unit: "dB", yLabel: "dB", refY: [{ y: 0 }], xTip: function (v) { return fmt(v, 0) + " Hz"; }, aria: "Processing EQ between copies" },
+             x.map(function (v, k) { return k; }).filter(function (k) { return k % 3 === 0; }), "Harmonic (Hz)");
+  }
+
+  function renderState() {
+    var st = document.getElementById("state"); clear(st);
+    st.append(el("h3", { text: "What we have now" }));
+    var ul = el("ul");
+    [
+      "A two-polarisation string with a curved jawari bridge and thread, finger pluck, nut coupling, friction and tension modulation (energy-consistent, validated against an independent integrator). Round 3 added a grooved bridge, body drain per polarisation and pitch design; its defaults are bit-identical to round 2.",
+      "Fitted to your three strings with a physical output chain. The pitch now matches within 0.1 cent. You hear Sa as close, and the kharaj and Pa as not.",
+      "This page shows that the swell timing and the pitch slide after the pluck follow your verdict, while the tone balance (too much bass, too little treble) does not. Both are evolution features that the fit's loss scored lightly or not at all.",
+      "The likely cause of the upward pitch slide: the swell comes from energy moving from the sideways motion into the motion towards the bridge. That brings the string into more contact with the curved jawari during the swell, which shortens it and raises the pitch. On a real string the pitch falls instead (tension modulation). Round 4 should look at the pluck direction, the contact at rest and the tension modulation together.",
+      "Nothing heavy was run for this page. The analysis reads the existing round-3 and round-2 renders and your files (match_report.py, about 20 s on one core)."
+    ].forEach(function (s) { ul.append(el("li", { text: s })); });
+    st.append(ul);
+    document.getElementById("mac").textContent = [
+      "git clone https://github.com/mumu1818/tanpura-synthesis && cd tanpura-synthesis",
+      "git checkout ccr-373d1d57-9y8koz",
+      "uv sync                                   # Python env (numpy, scipy, soundfile, matplotlib)",
+      "export TANPURA_REFS=/path/to/tanpura-app/assets   # your app's assets folder (read only)",
+      "cd jawari",
+      "python fit3.py final kharaj pa sa --jobs 8   # re-render the round-3 fits (needs the fit history)",
+      "python match_report.py                      # this page -> out/report/match_report.html"
+    ].join("\n");
+    var md = DATA.method;
+    document.getElementById("method").textContent = "Method: partial tracks with a " + md.periods + "-period Hann window, " + md.hop_ms + " ms steps (shown every " + md.report_hop_ms + " ms), up to " + md.fmax + " Hz; comparisons from " + (1000 * md.t0) + " ms after the onset; per-cell differences clipped at ±" + md.clip_db + " dB and counted where either signal is within " + (-md.mask_db) + " dB of its loudest partial. Everything is computed by jawari/match_report.py; the numbers are in out/report/match_report.json.";
+  }
+
+  function renderString() {
+    renderHeatmaps(); renderSwell(); renderPartials(); renderAttack(); renderSplit(); renderPercept(); renderForensics();
+  }
+  function renderAll() { renderHeader(); renderControls(); renderString(); renderLoss(); renderState(); }
+  renderAll();
+  var lastW = window.innerWidth, timer = null;
+  window.addEventListener("resize", function () {
+    if (Math.abs(window.innerWidth - lastW) < 8) return;
+    lastW = window.innerWidth; clearTimeout(timer); timer = setTimeout(function () { renderString(); renderLoss(); }, 150);
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var re = function () { renderString(); renderLoss(); };
+    if (mq.addEventListener) mq.addEventListener("change", re);
+  }
+})();
+</script>
+</body>
+</html>

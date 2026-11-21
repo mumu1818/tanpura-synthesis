@@ -56,6 +56,11 @@ sf.write('out/jawari_demo.wav', 0.9*y/abs(y).max(), 44100); print('wrote out/jaw
 | `render_demo.py` | full chain: kharaj → statics → string → body; single pluck + re-plucked drone → `out/demo/` |
 | `reference.py`, `REFERENCE.md` | analyser for a **recorded pluck** (own instrument or iTanpura): onset, f0/glide, B, partial envelopes, per-partial T60, pluck comb, pitch-relative jawari descriptors, attack, colour, stereo; `compare()` with a ranked list of mismatches and figures; `fit()` of gap, losses, pluck position. REFERENCE.md says how to record references |
 | `validate_reference.py` | analyser checks: synthetic plucks, model round trips (exact eigenvalues), fit recovery → `out/reference/validation/` |
+| `fit2d.py`, `FIT2D.md`, `render_match.py` | round 2: the sideways-pluck 2-D model fitted to the real plucks; the A/B listening set and drone |
+| `MODEL_2D_ROUND3.md`, `validate2d_round3.py` | round 3 physics: grooved bridge contact, body drain per polarisation, pitch design (`design_f1`); tests A-H |
+| `fit3.py`, `FIT3.md`, `render_match3.py` | round 3 refit with a physical output chain (HP ≤ 150 Hz); listening set (A/B run; the drone part is untested) |
+| `fits/round3_best.json` | the best round-2 and round-3 parameters and chains per string, so the fits can be re-rendered without the git-ignored fit histories |
+| `match_report.py`, `match_report_template.html`, `MATCH_REPORT.md` | **time-resolved analysis, model vs real plucks**: partial tracks, swell, pitch slide, attack, mismatch split, auditory model, candidate losses vs your verdict, same-pluck forensics → `out/report/match_report.html` (no simulation, ~20 s) |
 
 All outputs go to `jawari/out/` (git-ignored); set `TANPURA_OUT` to change this.
 
@@ -99,6 +104,26 @@ The kharaj presets:
 
 `python study_kharaj.py` renders every case to `out/kharaj/`: nominal, old pulse, thread ±0.1 / ±0.3 mm, steel, linear reference, loss sensitivity and convergence.
 
+## Running on another machine (e.g. the MacBook Pro)
+
+Nothing here needs a GPU. The time-stepping is sequential, so a faster CPU helps each run, and the fits run several renders in parallel (`--jobs N`, about one per performance core).
+
+```bash
+git clone https://github.com/mumu1818/tanpura-synthesis && cd tanpura-synthesis
+git checkout ccr-373d1d57-9y8koz
+uv sync                                              # Python environment
+export TANPURA_REFS=/path/to/tanpura-app/assets      # the app's assets folder; only read, never copied
+cd jawari
+```
+
+* `out/` is git-ignored, so a fresh clone has no fit histories, caches or renders.
+* The best parameters of rounds 2 and 3 are in `fits/round3_best.json`:
+  * per string: `x` (the fit parameters), `f1_final` with `design_f1`, and the fitted output `chain` per recording.
+  * Re-render them with `fit3.render(string, x, 6.0, f1_final, True)` and `fit3.chain_signal`.
+  * `fit3.py final` needs the fit history and the FIT2D caches.
+* `python match_report.py` then needs the renders in `out/fit3/wav/`.
+* Before new training, read [`MATCH_REPORT.md`](MATCH_REPORT.md): it argues the loss should change first (swell timing, pitch slide, perceptual and EQ-invariant comparison, calibration against real-vs-real distances).
+
 ## Instrument facts from the user
 
 - The kharaj is **phosphor bronze** (ρ ≈ 8800 kg/m³, E ≈ 1.1e11 Pa), 0.7 mm, speaking length 1.05 m, C#2 = 69.4 Hz.
@@ -126,6 +151,14 @@ These are the next steps; see [`../docs/EVALUATION.md`](../docs/EVALUATION.md) �
 - **Pitch.** Bridge contact makes the sounding pitch +4 to +7 cents sharp; there is no jawari-on tuning yet.
 - **Other strings.** There is only one string: no Pa/Sa/Sa and no sympathetic coupling.
 - **The drone is simplified.** Every pluck is identical, and the finger does not damp the string on re-pluck.
+- **Round 3 and the match report.**
+  - With a physical output chain, the round-3 fit gets the pitch within 0.1 cent ([`FIT3.md`](FIT3.md)).
+  - The user hears Sa as close, and the kharaj and Pa as not.
+  - [`MATCH_REPORT.md`](MATCH_REPORT.md) shows which differences follow that verdict:
+    - they do: the swell's timing, and the pitch slide after the pluck (the kharaj and Pa models slide up, the real strings slide down);
+    - they do not: the tone balance.
+  - The fit's loss D3 does not follow the verdict, and it is about as sensitive to processing as to physics.
+  - The reference files are mostly the iTanpura plucks, processed.
 - **Matching real plucks (2-D, sideways pluck; see `FIT2D.md`, `render_match.py`).** The bloom now matches the user's recordings: level curve within 2–4 dB over 0.1–3.5 s. But:
   - the string keeps too much energy in partials 1–3, and the fit hides this with a strong 250–400 Hz high-pass;
   - the attack lacks brightness and the finger click;
