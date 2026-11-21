@@ -34,6 +34,9 @@ How the 1-D preset is translated (preset2d):
   tm True          Kirchhoff-Carrier tension modulation (both polarisations).
   kcz, rcz None    lateral thread = vertical thread (isotropic: keeps tune='speaking' exact on the nut's axis 1).
   tune_ref 'axis1' tune='speaking' tunes the nut's axis-1 series to f1; axis 2 is detune_cents sharper.
+  round-3 keys     groove_kappa, groove_z0, groove_slope, Yb_y, Yb_z, drain_body, drain_weights, solver, rec_modes:
+                   tanpura2d options, all off here (MODEL_2D_ROUND3.md).  design_f1 (a statics key of presets.preset)
+                   re-designs psi so the string can be tuned to f1, e.g. preset2d('kharaj', f1=68.95, design_f1=True).
   gz 0.1           mono mix weight of the horizontal (in-plane) bridge force.  ASSUMED, -20 dB: the in-plane force
                    drives the soundboard only through bridge rocking.  The 2-D C3 work used 0.3 (common.GZ_MONO); with
                    0.3 the strong initial in-plane force masks the bloom (mono rise 0-8 dB), the references' 14-18 dB

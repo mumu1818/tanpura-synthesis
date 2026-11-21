@@ -9,6 +9,7 @@
     p = preset("dafx16_c3")                        # exactly tanpura1d.DEFAULT (DAFx-16 C3 reference)
     p = preset("sa", dur=12.0)                     # the two middle (jodi) strings, C#3, 0.50 mm steel (ASSUMED gauge)
     p = preset("pa", dur=12.0)                     # the first string (pancham), G#2, 0.55 mm bronze (ASSUMED gauge)
+    p = preset("kharaj", f1=68.95, design_f1=True) # psi re-designed so the thread grazes at x_c0 at this pitch
 
 Presets
 -------
@@ -274,8 +275,34 @@ def design_instrument(material, x_c0=4e-3, geom=None, dyn=None, iters=6):
     return psi, T
 
 
+@functools.lru_cache(maxsize=32)
+def _designed_psi_cached(material, f_design, gkey, dkey):
+    g = dict(gkey)
+    g["f1"] = float(f_design)
+    psi, T = design_instrument(material, g["x_c0"], g, dict(dkey))
+    return float(psi), float(T)
+
+
+def designed_psi(material, f_design, geom=None, dyn=None):
+    """psi (deg) for which the thread at x_c0 just grazes (target_gap) at the tension tuned to f_design
+    (design_instrument at f1 = f_design), cached.  Used by preset(..., design_f1=...).  Returns (psi, T)."""
+    g = dict(KHARAJ_GEOM)
+    g.update(geom or {})
+    g.pop("psi_deg", None)
+    dd = dict(KHARAJ_DYN)
+    dd.update(dyn or {})
+    dkey = tuple(sorted((k, dd.get(k, T1.DEFAULT.get(k))) for k in ("fs", "fmax", "M", "kc", "wc", "thread", "tune")))
+    return _designed_psi_cached(material, float(f_design), tuple(sorted(g.items())), dkey)
+
+
 # ----------------------------------------------------------------------------------------------- presets
-GEOM_KEYS = set(KHARAJ_GEOM)
+# design_f1 (optional, default None = off): re-design the speaking-length angle psi of the string's track for grazing at
+# x_c0 at the tension of f1 = design_f1 (True: at the preset's own f1) instead of using PSI_DESIGN / PSI_STRING.  This is
+# how an instrument is set up for a different pitch: the jawari is re-filed (equivalently psi re-chosen) so the thread
+# grazes at its usual place.  Needed to tune the bronze kharaj below ~69 Hz, where the fixed psi has no grazing thread
+# position (MODEL_2D_ROUND3.md).
+DESIGN_KEYS = {"design_f1"}
+GEOM_KEYS = set(KHARAJ_GEOM) | DESIGN_KEYS
 
 
 def preset(name, **overrides):
@@ -295,10 +322,22 @@ def preset(name, **overrides):
     spec = STRING_SPECS[name]
     material = spec["material"]
     geom = dict(spec["geom"])                     # the string's own gauge, pitch and designed psi ({} for kharaj)
-    geom.update({k: overrides.pop(k) for k in list(overrides) if k in GEOM_KEYS})
+    user_geom = {k: overrides.pop(k) for k in list(overrides) if k in GEOM_KEYS}
+    geom.update(user_geom)
+    design_f1 = geom.pop("design_f1", None)
     dyn = dict(KHARAJ_DYN)
     dyn.update(overrides)
+    design = None
+    if design_f1 is not None:
+        if user_geom.get("psi_deg") is not None:
+            raise ValueError("give either psi_deg or design_f1, not both")
+        f_d = float(geom.get("f1", KHARAJ_GEOM["f1"])) if design_f1 is True else float(design_f1)
+        psi_d, T_d = designed_psi(material, f_d, geom, dyn)
+        geom["psi_deg"] = psi_d
+        design = dict(design_f1=f_d, psi_designed=psi_d, T_design=T_d)
     t1, info = kharaj_geometry(material, geom, dyn, role=spec["role"])
+    if design is not None:
+        info.update(design)
     p = dict(T1.DEFAULT)
     p.update(t1)
     p.update(KHARAJ_DYN)
